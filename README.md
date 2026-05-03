@@ -104,6 +104,16 @@ python agents/agent_nl_sql_demo.py
 python agents/agent_nl_sql_demo.py --verbose
 ```
 
+**6. Open the ReAct loop animation**
+
+```bash
+open react_loop_visualizer.html        # macOS
+xdg-open react_loop_visualizer.html    # Linux
+start react_loop_visualizer.html       # Windows
+```
+
+This opens an interactive browser animation that walks through each phase of the ReAct loop (Analyze, Plan, Reason, Act, Observe, Decide) step by step with live visuals.
+
 ## Notebook Curriculum
 
 | # | Notebook | What You Learn |

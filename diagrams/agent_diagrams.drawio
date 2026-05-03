@@ -1,0 +1,503 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+
+  <!-- PAGE 1: Native Tool Calling Flow -->
+  <diagram name="1. Native Tool Calling" id="tool-calling">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="t1" value="&lt;b style='font-size:24px'&gt;Native Tool Calling Flow&lt;/b&gt;&lt;br&gt;&lt;font color='#64748b'&gt;How modern LLM APIs handle tool calls (OpenAI, Anthropic, etc.)&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="350" y="20" width="500" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- User -->
+        <mxCell id="tc-user" value="&lt;b&gt;User&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;&amp;quot;What is 12*7 AND&lt;br&gt;what is 100+250?&amp;quot;&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="80" y="120" width="140" height="140" as="geometry"/>
+        </mxCell>
+
+        <!-- API Call Box -->
+        <mxCell id="tc-api" value="&lt;b&gt;API Call&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;messages + tool_schemas&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="300" y="155" width="180" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- LLM -->
+        <mxCell id="tc-llm" value="&lt;b style='font-size:16px'&gt;LLM&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;Reads tool schemas&lt;br&gt;Decides which tools to call&lt;br&gt;Emits structured JSON&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="560" y="120" width="220" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Response JSON -->
+        <mxCell id="tc-resp" value="&lt;b&gt;Response: tool_calls[]&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;Structured JSON array&lt;br&gt;Can contain MULTIPLE calls&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="560" y="280" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Parallel tool calls -->
+        <mxCell id="tc-t1" value="&lt;b&gt;multiply(12, 7)&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;tool_call_id: call_001&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="400" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-t2" value="&lt;b&gt;add(100, 250)&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;tool_call_id: call_002&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="400" width="180" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Parallel label -->
+        <mxCell id="tc-par" value="&lt;b style='color:#82b366'&gt;PARALLEL EXECUTION&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Both run simultaneously&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="470" y="460" width="200" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Results -->
+        <mxCell id="tc-r1" value="&lt;b&gt;ToolMessage&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;id: call_001&lt;br&gt;content: &amp;quot;84&amp;quot;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="520" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-r2" value="&lt;b&gt;ToolMessage&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;id: call_002&lt;br&gt;content: &amp;quot;350&amp;quot;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="520" width="180" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Back to LLM -->
+        <mxCell id="tc-llm2" value="&lt;b&gt;LLM (2nd call)&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;Sees both results&lt;br&gt;No more tool_calls&lt;br&gt;Writes text answer&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="480" y="630" width="200" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Final answer -->
+        <mxCell id="tc-final" value="&lt;b style='font-size:14px'&gt;&amp;quot;12*7 = 84 and 100+250 = 350&amp;quot;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="480" y="750" width="200" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Back to user -->
+        <mxCell id="tc-user2" value="&lt;b&gt;User&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="80" y="710" width="100" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- ARROWS -->
+        <mxCell id="ea1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6c8ebf;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-user" target="tc-api">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-api" target="tc-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#9673a6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-llm" target="tc-resp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea4" value="&lt;font style='font-size:10px'&gt;tool_call 1&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-resp" target="tc-t1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea5" value="&lt;font style='font-size:10px'&gt;tool_call 2&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-resp" target="tc-t2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1;strokeColor=#82b366;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-t1" target="tc-r1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1;strokeColor=#82b366;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-t2" target="tc-r2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-r1" target="tc-llm2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-r2" target="tc-llm2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#9673a6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-llm2" target="tc-final">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#b85450;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tc-final" target="tc-user2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Annotations -->
+        <mxCell id="tc-n1" value="&lt;font style='font-size:11px;color:#9673a6'&gt;&lt;b&gt;1 LLM call&lt;/b&gt; produces&lt;br&gt;2 parallel tool calls&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="850" y="290" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-n2" value="&lt;font style='font-size:11px;color:#82b366'&gt;&lt;b&gt;Both tools execute&lt;br&gt;at the same time&lt;/b&gt;&lt;br&gt;(parallel execution)&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="850" y="420" width="160" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-n3" value="&lt;font style='font-size:11px;color:#b85450'&gt;&lt;b&gt;Only 2 LLM calls total&lt;/b&gt;&lt;br&gt;(1 to get tools, 1 for answer)&lt;br&gt;vs 3 calls if sequential&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="850" y="650" width="180" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="tc-leg" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="460" width="60" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="50" y="485" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l1t" value="User" style="text;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="483" width="80" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="50" y="505" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l2t" value="LLM" style="text;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="503" width="80" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="50" y="525" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l3t" value="Tool Execution" style="text;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="523" width="100" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l4" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="50" y="545" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l4t" value="JSON Response" style="text;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="543" width="100" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l5" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="50" y="565" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-l5t" value="Final Answer" style="text;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="563" width="100" height="18" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- PAGE 2: Sequential Tool Calls -->
+  <diagram name="2. Sequential Tool Calls" id="sequential">
+    <mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="st" value="&lt;b style='font-size:24px'&gt;Sequential (Series) Tool Calls&lt;/b&gt;&lt;br&gt;&lt;font color='#64748b'&gt;When Tool B depends on Tool A's output &amp;mdash; must be called in order&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="250" y="20" width="550" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Question -->
+        <mxCell id="sq" value="&lt;b&gt;Question&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;&amp;quot;What is the temperature in the&lt;br&gt;most populated city?&amp;quot;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="100" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Iteration 1 -->
+        <mxCell id="si1" value="ITERATION 1" style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#9673a6;fontSize=12;rounded=1;html=1;fontStyle=1;fontColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="70" y="210" width="300" height="250" as="geometry"/>
+        </mxCell>
+        <mxCell id="si1a" value="&lt;b&gt;LLM Call #1&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Prompt: tools + question&lt;br&gt;Scratchpad: (empty)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="si1">
+          <mxGeometry x="20" y="35" width="260" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="si1b" value="&lt;b&gt;Output:&lt;/b&gt; Action: web_search&lt;br&gt;Input: &amp;quot;most populated city&amp;quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="si1">
+          <mxGeometry x="20" y="100" width="260" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="si1c" value="&lt;b&gt;Tool: web_search()&lt;/b&gt;&lt;br&gt;&lt;font style='color:#065f46'&gt;Result: Tokyo, Japan (37.4M)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="si1">
+          <mxGeometry x="20" y="155" width="260" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="si1arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#9673a6;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="si1" source="si1a" target="si1b">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="si1arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#82b366;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="si1" source="si1b" target="si1c">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Decision 1 -->
+        <mxCell id="sd1" value="Can answer?&lt;br&gt;&lt;b&gt;NO&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Need temperature&lt;/font&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="140" y="500" width="160" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Loop arrow -->
+        <mxCell id="sloop" value="LOOP BACK" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=3;strokeColor=#0891b2;flowAnimation=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontColor=#0891b2;fontStyle=1;fontSize=11;" edge="1" parent="1" source="sd1" target="si2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Iteration 2 -->
+        <mxCell id="si2" value="ITERATION 2" style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#059669;fontSize=12;rounded=1;html=1;fontStyle=1;fontColor=#059669;" vertex="1" parent="1">
+          <mxGeometry x="430" y="210" width="300" height="250" as="geometry"/>
+        </mxCell>
+        <mxCell id="si2a" value="&lt;b&gt;LLM Call #2&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Prompt: tools + question&lt;br&gt;Scratchpad: web_search &amp;rarr; Tokyo&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="si2">
+          <mxGeometry x="20" y="35" width="260" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="si2b" value="&lt;b&gt;Output:&lt;/b&gt; Action: get_temperature&lt;br&gt;Input: &amp;quot;Tokyo, Japan&amp;quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="si2">
+          <mxGeometry x="20" y="100" width="260" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="si2c" value="&lt;b&gt;Tool: get_temperature()&lt;/b&gt;&lt;br&gt;&lt;font style='color:#065f46'&gt;Result: 28&amp;deg;C (82&amp;deg;F) Partly Cloudy&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="si2">
+          <mxGeometry x="20" y="155" width="260" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="si2arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#9673a6;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="si2" source="si2a" target="si2b">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="si2arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#82b366;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="si2" source="si2b" target="si2c">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Decision 2 -->
+        <mxCell id="sd2" value="Can answer?&lt;br&gt;&lt;b&gt;YES!&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontColor=#059669;" vertex="1" parent="1">
+          <mxGeometry x="500" y="500" width="160" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Iteration 3 -->
+        <mxCell id="si3" value="ITERATION 3" style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#b85450;fontSize=12;rounded=1;html=1;fontStyle=1;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="790" y="210" width="300" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="si3a" value="&lt;b&gt;LLM Call #3&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Scratchpad: both results&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="si3">
+          <mxGeometry x="20" y="35" width="260" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="si3b" value="&lt;b&gt;Final Answer:&lt;/b&gt;&lt;br&gt;Tokyo, Japan (37.4M) &amp;mdash; 28&amp;deg;C" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="si3">
+          <mxGeometry x="20" y="95" width="260" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="si3arr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#b85450;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="si3" source="si3a" target="si3b">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Loop 2 -->
+        <mxCell id="sloop2" value="LOOP BACK" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=3;strokeColor=#0891b2;flowAnimation=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontColor=#0891b2;fontStyle=1;fontSize=11;" edge="1" parent="1" source="sd2" target="si3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows main flow -->
+        <mxCell id="sarr1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#6c8ebf;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="sq" target="si1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="sarr2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#9673a6;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="si1" target="sd1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="sarr4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#059669;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="si2" target="sd2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Key insight -->
+        <mxCell id="skey" value="&lt;b&gt;KEY INSIGHT&lt;/b&gt;&lt;br&gt;&lt;br&gt;Tool #2 (&lt;code&gt;get_temperature&lt;/code&gt;)&lt;br&gt;CANNOT run until Tool #1&lt;br&gt;(&lt;code&gt;web_search&lt;/code&gt;) returns.&lt;br&gt;&lt;br&gt;The input to Tool #2 comes&lt;br&gt;from the output of Tool #1.&lt;br&gt;&lt;br&gt;&lt;b&gt;This chaining is sequential &amp;mdash;&lt;br&gt;it requires multiple LLM calls.&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6e6e6;strokeColor=#999999;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="820" y="500" width="240" height="180" as="geometry"/>
+        </mxCell>
+
+        <!-- Metrics -->
+        <mxCell id="smet" value="&lt;b&gt;Cost:&lt;/b&gt; 3 LLM calls&lt;br&gt;&lt;b&gt;Latency:&lt;/b&gt; 3 round trips&lt;br&gt;&lt;b&gt;Tokens:&lt;/b&gt; Growing (scratchpad)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="820" y="700" width="200" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- PAGE 3: ReAct Loop Detail -->
+  <diagram name="3. ReAct Loop (Detail)" id="react-detail">
+    <mxGraphModel dx="1400" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="rt" value="&lt;b style='font-size:24px'&gt;The ReAct Agent Loop &amp;mdash; Detailed View&lt;/b&gt;&lt;br&gt;&lt;font color='#64748b'&gt;Reason + Act | Every component shown with the actual data that flows through it&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="250" y="15" width="600" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- User -->
+        <mxCell id="r-user" value="&lt;b&gt;User Question&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;&amp;quot;What is the temperature in&lt;br&gt;the most populated city?&amp;quot;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="290" y="80" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Format Prompt -->
+        <mxCell id="r-prompt" value="&lt;b&gt;Format Prompt&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;Template filled with:&lt;br&gt;{tools} + {input} + {scratchpad}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="290" y="200" width="280" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- Prompt detail box -->
+        <mxCell id="r-pdetail" value="&lt;font style='font-size:9px;font-family:monospace'&gt;Answer the following questions...&lt;br&gt;Tools: web_search, get_temperature&lt;br&gt;Format: Thought/Action/Observation&lt;br&gt;Question: {user_question}&lt;br&gt;{scratchpad_contents}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#cccccc;fontSize=9;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="620" y="190" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- LLM -->
+        <mxCell id="r-llm" value="&lt;b style='font-size:14px'&gt;LLM (GPT-4o)&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;stop=[&amp;quot;\nObservation:&amp;quot;]&lt;br&gt;Generates: Thought + Action + Input&lt;br&gt;STOPS before writing Observation&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="270" y="320" width="320" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- LLM output detail -->
+        <mxCell id="r-ldetail" value="&lt;font style='font-size:9px;font-family:monospace'&gt;Thought: I need to find the city...&lt;br&gt;Action: web_search&lt;br&gt;Action Input: most populated city&lt;br&gt;[STOPPED HERE by stop token]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#cccccc;fontSize=9;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="640" y="325" width="230" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Parser -->
+        <mxCell id="r-parser" value="&lt;b&gt;Output Parser&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;regex: Action: (.*)&lt;br&gt;regex: Action Input: (.*)&lt;br&gt;regex: Final Answer: (.*)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="290" y="460" width="280" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Decision -->
+        <mxCell id="r-dec" value="&lt;b&gt;Route?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="360" y="590" width="140" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Final Answer -->
+        <mxCell id="r-ans" value="&lt;b&gt;Final Answer&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;Exit loop, return to user&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="620" y="605" width="200" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Tool Executor -->
+        <mxCell id="r-tool" value="&lt;b&gt;Tool Executor&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;tool_registry[action_name](input)&lt;br&gt;Runs REAL Python function&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="290" y="760" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Scratchpad -->
+        <mxCell id="r-scratch" value="&lt;b&gt;Scratchpad (Agent Memory)&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#64748b'&gt;Appends: Thought + Action + Observation&lt;br&gt;GROWS every iteration (token cost!)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#0891b2;fontSize=12;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="290" y="880" width="280" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- ARROWS -->
+        <mxCell id="ra1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6c8ebf;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="r-user" target="r-prompt">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ra2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#9673a6;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="r-prompt" target="r-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ra3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#9673a6;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="r-llm" target="r-parser">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ra4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#d79b00;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="r-parser" target="r-dec">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ra5" value="&lt;font style='font-size:11px;color:#b85450'&gt;&lt;b&gt;Final Answer&lt;/b&gt;&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#b85450;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="r-dec" target="r-ans">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ra6" value="&lt;font style='font-size:11px;color:#82b366'&gt;&lt;b&gt;Tool Call&lt;/b&gt;&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="r-dec" target="r-tool">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ra7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="r-tool" target="r-scratch">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- LOOP BACK -->
+        <mxCell id="ra8" value="LOOP BACK" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#0891b2;fontColor=#0891b2;fontStyle=1;fontSize=12;flowAnimation=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="r-scratch" target="r-prompt">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="220" y="912"/>
+              <mxPoint x="220" y="232"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Answer back to user -->
+        <mxCell id="ra9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#b85450;dashed=1;exitX=0.5;exitY=0;entryX=1;entryY=0.5;" edge="1" parent="1" source="r-ans" target="r-user">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="720" y="110"/></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Detail arrows -->
+        <mxCell id="rd1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#cccccc;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="r-prompt" target="r-pdetail">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="rd2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#cccccc;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="r-llm" target="r-ldetail">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- PAGE 4: Complex Example (6 tools) -->
+  <diagram name="4. Complex Example (6 Tools)" id="complex-example">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="ct" value="&lt;b style='font-size:24px'&gt;Complex Example: 6 Tools, 4 Used, 2 Skipped&lt;/b&gt;&lt;br&gt;&lt;font color='#64748b'&gt;&amp;quot;Plan a team offsite for 12 people in Austin, Texas next Friday&amp;quot;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="250" y="10" width="600" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Tools Available -->
+        <mxCell id="c-tools" value="&lt;b&gt;6 TOOLS AVAILABLE&lt;/b&gt;" style="swimlane;startSize=22;fillColor=#f5f5f5;strokeColor=#999;rounded=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="30" y="80" width="200" height="230" as="geometry"/>
+        </mxCell>
+        <mxCell id="ct1" value="web_search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999;fontSize=10;fontStyle=2;" vertex="1" parent="c-tools">
+          <mxGeometry x="10" y="30" width="180" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="ct2" value="&lt;b&gt;get_weather &amp;#x2713;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="c-tools">
+          <mxGeometry x="10" y="60" width="180" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="ct3" value="&lt;b&gt;find_venues &amp;#x2713;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="c-tools">
+          <mxGeometry x="10" y="90" width="180" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="ct4" value="&lt;b&gt;check_availability &amp;#x2713;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="c-tools">
+          <mxGeometry x="10" y="120" width="180" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="ct5" value="&lt;b&gt;calculator &amp;#x2713;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="c-tools">
+          <mxGeometry x="10" y="150" width="180" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="ct6" value="send_booking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999;fontSize=10;fontStyle=2;" vertex="1" parent="c-tools">
+          <mxGeometry x="10" y="180" width="180" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- Skipped note -->
+        <mxCell id="c-skip" value="&lt;font style='font-size:10px;color:#999'&gt;&lt;b&gt;Skipped:&lt;/b&gt; web_search (find_venues&lt;br&gt;is more specific), send_booking&lt;br&gt;(user didn&amp;rsquo;t ask to book yet)&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="30" y="320" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Iteration flow -->
+        <mxCell id="ci1" value="&lt;b style='color:#0891b2'&gt;Iter 1: get_weather&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Input: &amp;quot;Austin, TX, Friday&amp;quot;&lt;br&gt;&lt;b style='color:#065f46'&gt;Result: 35&amp;deg;C, Hot, Sunny&lt;/b&gt;&lt;br&gt;&lt;font color='#b85450'&gt;Decision: Indoor needed&lt;/font&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#0891b2;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="290" y="80" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ci2" value="&lt;b style='color:#9673a6'&gt;Iter 2: find_venues&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Input: &amp;quot;Austin, indoor, 12 ppl&amp;quot;&lt;br&gt;&lt;b style='color:#065f46'&gt;Result: 3 venues found&lt;/b&gt;&lt;br&gt;Best: Lakeview Hall $800/day&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f3ff;strokeColor=#9673a6;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="290" y="200" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ci3" value="&lt;b style='color:#059669'&gt;Iter 3: check_availability&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Input: &amp;quot;Lakeview Hall, Friday, 12&amp;quot;&lt;br&gt;&lt;b style='color:#065f46'&gt;Result: Available 9am-5pm&lt;/b&gt;&lt;br&gt;Catering: $45/person&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#059669;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="290" y="320" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ci4" value="&lt;b style='color:#d97706'&gt;Iter 4: calculator&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;Input: &amp;quot;800 + (12 * 45)&amp;quot;&lt;br&gt;&lt;b style='color:#065f46'&gt;Result: $1,340&lt;/b&gt;&lt;br&gt;($800 venue + $540 catering)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="290" y="440" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ci5" value="&lt;b style='color:#dc2626;font-size:14px'&gt;FINAL ANSWER&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:11px'&gt;Lakeview Hall, Austin&lt;br&gt;Friday 9am-5pm, 12 people&lt;br&gt;&lt;b&gt;Total: $1,340&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="290" y="560" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows between iterations -->
+        <mxCell id="ca1" value="&lt;font style='color:#0891b2;font-size:10px'&gt;35&amp;deg;C &amp;rarr; indoor&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#0891b2;flowAnimation=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="ci1" target="ci2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ca2" value="&lt;font style='color:#9673a6;font-size:10px'&gt;Lakeview Hall&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#9673a6;flowAnimation=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="ci2" target="ci3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ca3" value="&lt;font style='color:#059669;font-size:10px'&gt;Available!&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#059669;flowAnimation=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="ci3" target="ci4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ca4" value="&lt;font style='color:#d97706;font-size:10px'&gt;$1,340&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#d97706;flowAnimation=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="ci4" target="ci5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Right side: data flow chain -->
+        <mxCell id="c-chain" value="&lt;b style='font-size:14px'&gt;Tool Output Chaining&lt;/b&gt;" style="text;html=1;align=center;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="630" y="80" width="200" height="25" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cc1" value="&lt;b&gt;35&amp;deg;C Hot&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#0891b2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="120" width="120" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cc1t" value="&lt;font style='font-size:10px;color:#64748b'&gt;informs venue type:&lt;br&gt;&amp;quot;indoor&amp;quot;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="780" y="120" width="120" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cc2" value="&lt;b&gt;Lakeview Hall&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;$800/day&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f3ff;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="200" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="cc2t" value="&lt;font style='font-size:10px;color:#64748b'&gt;feeds into&lt;br&gt;availability check&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="780" y="200" width="120" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cc3" value="&lt;b&gt;Available Fri&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:10px'&gt;9am-5pm, $45/pp&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#059669;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="640" y="285" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="cc3t" value="&lt;font style='font-size:10px;color:#64748b'&gt;feeds into&lt;br&gt;cost calculation&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="780" y="285" width="120" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cc4" value="&lt;b&gt;$1,340&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="640" y="370" width="120" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Chain arrows -->
+        <mxCell id="cca1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#666;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cc1" target="cc2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cca2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#666;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cc2" target="cc3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cca3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#666;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cc3" target="cc4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Metrics box -->
+        <mxCell id="c-met" value="&lt;b&gt;Metrics&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style='font-size:11px'&gt;LLM Calls: &lt;b&gt;5&lt;/b&gt;&lt;br&gt;Tool Calls: &lt;b&gt;4&lt;/b&gt; of 6 available&lt;br&gt;Tools Skipped: &lt;b&gt;2&lt;/b&gt; (intelligent selection)&lt;br&gt;Token Growth: ~100 tokens/iteration&lt;br&gt;&lt;br&gt;Each iteration, the scratchpad includes&lt;br&gt;ALL previous Thoughts + Observations.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6e6e6;strokeColor=#999;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="600" y="470" width="280" height="180" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

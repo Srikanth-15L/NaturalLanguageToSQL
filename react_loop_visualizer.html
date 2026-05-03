@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReAct Agent Loop</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8fafc;--card:#fff;--ink:#1e293b;--ink2:#475569;--ink3:#94a3b8;
+  --line:#e2e8f0;--line2:#cbd5e1;
+  --v:#7c3aed;--vl:#ede9fe;--b:#2563eb;--bl:#dbeafe;
+  --g:#059669;--gl:#d1fae5;--a:#d97706;--al:#fef3c7;
+  --r:#dc2626;--rl:#fee2e2;--t:#0891b2;--tl:#cffafe;
+  --gn:#16a34a;--gnl:#dcfce7;
+  --sans:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15px}
+
+.shell{display:grid;grid-template-rows:auto auto 1fr auto;height:100vh;width:100%;margin:0 auto;padding:0 32px}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+.hdr h1{font-size:22px;font-weight:800;letter-spacing:-.3px}
+.hdr h1 b{color:var(--v)}
+.pill{font-family:var(--mono);font-size:13px;color:var(--ink2);background:var(--bg);border:1px solid var(--line);padding:6px 14px;border-radius:6px;font-weight:600}
+
+/* ── PHASES ── */
+.phases{display:flex;align-items:center;justify-content:center;gap:4px;padding:12px 0;flex-shrink:0}
+.ph{font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:8px 16px;border-radius:6px;color:var(--ink3);transition:all .3s}
+.ph.on-analyze{background:var(--tl);color:var(--t)}
+.ph.on-plan{background:var(--al);color:var(--a)}
+.ph.on-reason{background:var(--vl);color:var(--v)}
+.ph.on-act{background:var(--bl);color:var(--b)}
+.ph.on-observe{background:var(--gl);color:var(--g)}
+.ph.on-decide{background:var(--al);color:var(--a)}
+.ph-sep{color:var(--line2);font-size:14px;margin:0 4px}
+
+/* ── MAIN ── */
+.main{display:grid;grid-template-columns:340px 1fr;gap:24px;overflow:hidden;min-height:0}
+
+/* ── LEFT DASHBOARD ── */
+.dash{display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding:10px 0;padding-right:8px}
+.d-box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.d-label{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink2);margin-bottom:8px}
+
+/* A: Question */
+.d-question{font-size:14px;font-weight:600;line-height:1.6;color:var(--ink)}
+
+/* B: Knowledge */
+.k-section{margin-bottom:6px}
+.k-section-label{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.k-section-label .k-dot{width:8px;height:8px;border-radius:50%}
+.k-internal .k-dot{background:var(--v)}
+.k-gaps .k-dot{background:var(--a)}
+.k-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
+.k-status{width:18px;height:18px;border-radius:50%;border:2px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.k-status.filled{background:var(--gn);border-color:var(--gn);color:#fff}
+.k-val{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--gn)}
+
+/* C: Tools */
+.tool-mini{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;border:1.5px solid var(--line);margin-bottom:6px;transition:all .3s}
+.tool-mini.active{border-color:var(--b);background:var(--bl)}
+.tool-mini.used{border-color:var(--gn);background:var(--gnl)}
+.t-icon{font-size:16px;margin-top:1px;flex-shrink:0}
+.t-info{flex:1}
+.t-name{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink)}
+.t-provides{font-size:12px;color:var(--ink2);line-height:1.4;margin-top:2px}
+
+/* D: Decision */
+.dec{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:10px;border:2.5px solid;transition:all .3s}
+.dec.neutral{border-color:var(--line);background:var(--bg);color:var(--ink3)}
+.dec.no{border-color:var(--r);background:var(--rl);color:var(--r)}
+.dec.yes{border-color:var(--gn);background:var(--gnl);color:var(--gn)}
+.dec-icon{font-size:28px;font-weight:800;line-height:1}
+.dec-text{font-size:15px;font-weight:700}
+.dec-sub{font-size:12px;font-weight:500;margin-top:3px;opacity:.8}
+
+/* E: Plan */
+.tk{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;font-weight:500}
+.tk-ck{width:20px;height:20px;border-radius:50%;border:2px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;transition:all .3s}
+.tk-ck.done{background:var(--gn);border-color:var(--gn);color:#fff}
+.tk-ck.now{border-color:var(--v);border-width:2px}
+.tk.done{color:var(--gn)}.tk.now{color:var(--v);font-weight:700}.tk.wait{color:var(--ink3)}
+
+/* ── RIGHT: STEPS ── */
+.tab{padding:7px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid var(--line);background:var(--card);color:var(--ink3);transition:all .15s}
+.tab:hover{border-color:var(--line2)}
+.tab.on{background:var(--v);color:#fff;border-color:var(--v)}
+
+.step-area{overflow-y:auto;padding:8px 0}
+
+/* Prompt/Output blocks */
+.prompt-wrap{margin:8px 0;border-radius:8px;overflow:hidden;border:1.5px solid var(--line)}
+.prompt-label{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:6px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.prompt-label.lbl-in{background:var(--bl);color:var(--b)}
+.prompt-label.lbl-out{background:var(--vl);color:var(--v)}
+.prompt-label.lbl-tool{background:var(--gl);color:var(--g)}
+.prompt-body{font-family:var(--mono);font-size:12px;line-height:1.6;padding:10px 14px;background:#1e293b;color:#cbd5e1;white-space:pre-wrap;max-height:200px;overflow-y:auto}
+.prompt-body .pk{color:#93c5fd}
+.prompt-body .pv{color:#86efac}
+.prompt-body .pc{color:#fda4af}
+.prompt-body .py{color:#fcd34d}
+
+.sc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin-bottom:12px;position:relative;overflow:hidden}
+.sc::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+.sc.sc-v::before{background:var(--v)}.sc.sc-b::before{background:var(--b)}
+.sc.sc-g::before{background:var(--g)}.sc.sc-a::before{background:var(--a)}
+.sc.sc-r::before{background:var(--r)}.sc.sc-t::before{background:var(--t)}
+.sc.sc-n::before{background:var(--line2)}
+
+.sc-tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:4px 12px;border-radius:5px;margin-bottom:8px}
+.tg-analyze{background:var(--tl);color:var(--t)}
+.tg-plan{background:var(--al);color:var(--a)}
+.tg-reason{background:var(--vl);color:var(--v)}
+.tg-act{background:var(--bl);color:var(--b)}
+.tg-observe{background:var(--gl);color:var(--g)}
+.tg-decide{background:var(--al);color:var(--a)}
+.tg-human{background:var(--bg);color:var(--ink3)}
+.tg-answer{background:var(--rl);color:var(--r)}
+
+.sc p{font-size:14px;line-height:1.7;color:var(--ink2);margin-bottom:6px}
+.sc p:last-child{margin-bottom:0}
+.sc strong{color:var(--ink);font-weight:700}
+.sc code{font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--line);padding:2px 7px;border-radius:4px}
+
+.sc pre{font-family:var(--mono);font-size:13px;line-height:1.6;background:#1e293b;color:#e2e8f0;padding:12px 16px;border-radius:8px;margin:8px 0;white-space:pre-wrap}
+.sc pre .hl{color:#93c5fd}
+
+.mini-result{font-family:var(--mono);font-size:14px;font-weight:600;padding:12px 16px;border-radius:8px;margin:8px 0;border:2px solid}
+.mini-result.res-g{background:var(--gnl);border-color:var(--gn);color:#15803d}
+.mini-result.res-b{background:var(--bl);border-color:var(--b);color:#1e40af}
+
+.loop-back{text-align:center;font-size:14px;font-weight:700;color:var(--v);padding:8px;margin-bottom:10px}
+
+.final-box{font-size:18px;font-weight:700;padding:24px;border-radius:12px;text-align:center;background:var(--gnl);border:2.5px solid var(--gn);color:#15803d;margin:10px 0}
+
+.recap{width:100%;border-collapse:collapse;font-size:10px;font-family:var(--mono);margin:6px 0}
+.recap td{padding:4px 6px;border-bottom:1px solid var(--line)}
+.recap tr:last-child td{border:0}
+
+.tool-inline{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;border:1px solid}
+.tool-inline.ti-b{border-color:var(--b);background:var(--bl);color:#1e40af}
+.tool-inline.ti-g{border-color:var(--gn);background:var(--gnl);color:#15803d}
+
+/* ── FOOTER ── */
+.foot{display:flex;align-items:center;justify-content:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
+.btn{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 18px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);color:var(--ink2);cursor:pointer;transition:all .12s}
+.btn:hover{background:var(--bg);border-color:var(--line2)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.2;pointer-events:none}
+.btn-go{background:var(--ink);color:#fff;border-color:var(--ink);padding:10px 24px;font-size:14px}
+.btn-go:hover{background:var(--ink2)}
+.btn-auto.on{border-color:var(--gn);color:var(--gn)}
+.f-prog{flex:1;max-width:180px}
+.f-bar{height:3px;background:var(--line);border-radius:3px;overflow:hidden}
+.f-fill{height:100%;background:var(--ink);border-radius:3px;transition:width .4s}
+.f-txt{font-family:var(--mono);font-size:9px;color:var(--ink3);text-align:center;margin-top:3px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="hdr">
+    <h1>The <b>ReAct</b> Agent Loop</h1>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="tab on" id="tab-simple" onclick="switchEx('simple')">Simple: 2 Tools</div>
+      <div class="tab" id="tab-complex" onclick="switchEx('complex')">Complex: 6 Tools</div>
+      <div class="pill" id="pill">press next to begin</div>
+    </div>
+  </div>
+
+  <div class="phases">
+    <div class="ph" id="ph-analyze">Analyze</div><div class="ph-sep">&#x25B8;</div>
+    <div class="ph" id="ph-plan">Plan</div><div class="ph-sep">&#x25B8;</div>
+    <div class="ph" id="ph-reason">Reason</div><div class="ph-sep">&#x25B8;</div>
+    <div class="ph" id="ph-act">Act</div><div class="ph-sep">&#x25B8;</div>
+    <div class="ph" id="ph-observe">Observe</div><div class="ph-sep">&#x25B8;</div>
+    <div class="ph" id="ph-decide">Decide</div><div class="ph-sep">&#x21BA;</div>
+  </div>
+
+  <div class="main">
+    <div class="dash" id="dash">
+      <!-- A: Question -->
+      <div class="d-box">
+        <div class="d-label">User Asked</div>
+        <div class="d-question">&ldquo;What is the current temperature in the most populated city in the world?&rdquo;</div>
+      </div>
+
+      <!-- B: Knowledge -->
+      <div class="d-box" id="knowBox">
+        <div class="d-label">LLM Knowledge</div>
+        <div id="knowContent">
+          <div class="k-section k-internal">
+            <div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div>
+            <div style="font-size:10px;color:var(--ink3);padding-left:10px">General world knowledge, language understanding</div>
+          </div>
+          <div class="k-section k-gaps">
+            <div class="k-section-label"><div class="k-dot"></div>Knowledge Gaps</div>
+            <div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Most populated city: <em>???</em></span></div>
+            <div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Temperature: <em>???</em></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- C: Tools -->
+      <div class="d-box" id="toolBox">
+        <div class="d-label">External Connections (Tools)</div>
+        <div id="toolContent">
+          <div class="tool-mini" id="tm-search">
+            <div class="t-icon">&#x1F50D;</div>
+            <div class="t-info"><div class="t-name">web_search(query)</div><div class="t-provides">Provides: real-time internet search results</div></div>
+          </div>
+          <div class="tool-mini" id="tm-temp">
+            <div class="t-icon">&#x1F321;</div>
+            <div class="t-info"><div class="t-name">get_temperature(city)</div><div class="t-provides">Provides: live weather data for any city</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- D: Decision -->
+      <div id="decBox" class="dec neutral">
+        <div class="dec-icon">&#x2014;</div>
+        <div><div class="dec-text">Can I answer?</div><div class="dec-sub">Waiting...</div></div>
+      </div>
+
+      <!-- E: Plan -->
+      <div class="d-box" id="planBox">
+        <div class="d-label">Plan</div>
+        <div id="planContent">
+          <div style="font-size:10px;color:var(--ink3);font-style:italic">No plan yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-area" id="stepArea">
+      <div id="stepContent">
+        <div class="sc" style="text-align:center;padding:32px 16px">
+          <p style="font-size:13px;color:var(--ink3)">Press <strong>Next</strong> or <strong>Space</strong> to watch the agent think.</p>
+          <p style="font-size:10px;color:var(--ink3);margin-top:4px">12 steps &middot; keyboard &#x2190;&#x2192; supported</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <button class="btn" id="bp" disabled>&#8592;</button>
+    <button class="btn" id="brst">Reset</button>
+    <div class="f-prog"><div class="f-bar"><div class="f-fill" id="ff" style="width:0"></div></div><div class="f-txt" id="ft">0/12</div></div>
+    <button class="btn btn-go" id="bn">Next &#8594;</button>
+    <button class="btn btn-auto" id="bau">Auto</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var pill=document.getElementById("pill"),ff=document.getElementById("ff"),ft=document.getElementById("ft");
+var bp=document.getElementById("bp"),bn=document.getElementById("bn"),brst=document.getElementById("brst"),bau=document.getElementById("bau");
+var phIds=["ph-analyze","ph-plan","ph-reason","ph-act","ph-observe","ph-decide"];
+
+// Helper for prompt/output blocks
+function promptBlock(label,cls,body){
+  return '<div class="prompt-wrap el"><div class="prompt-label '+cls+'">'+label+'</div><div class="prompt-body">'+body+'</div></div>';
+}
+function pIn(body){return promptBlock('Prompt sent to LLM','lbl-in',body);}
+function pOut(body){return promptBlock('LLM raw output','lbl-out',body);}
+function pTool(body){return promptBlock('Tool execution result','lbl-tool',body);}
+
+// Knowledge states
+var K={
+  empty:'<div class="k-section k-internal"><div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div><div style="font-size:10px;color:var(--ink3);padding-left:10px">General world knowledge, language understanding</div></div><div class="k-section k-gaps"><div class="k-section-label"><div class="k-dot"></div>Knowledge Gaps (needs real-time data)</div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Most populated city: <em>???</em></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Temperature: <em>???</em></span></div></div>',
+  city:'<div class="k-section k-internal"><div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div><div style="font-size:10px;color:var(--ink3);padding-left:10px">General world knowledge, language understanding</div></div><div class="k-section k-gaps"><div class="k-section-label"><div class="k-dot"></div>Learned from Tools</div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Most populated city:</strong> <span class="k-val">Tokyo, Japan (37.4M)</span></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Temperature: <em>???</em></span></div></div>',
+  full:'<div class="k-section k-internal"><div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div><div style="font-size:10px;color:var(--ink3);padding-left:10px">General world knowledge, language understanding</div></div><div class="k-section k-gaps"><div class="k-section-label"><div class="k-dot"></div>Learned from Tools</div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Most populated city:</strong> <span class="k-val">Tokyo, Japan (37.4M)</span></span></div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Temperature:</strong> <span class="k-val">28&#176;C (82&#176;F) Partly Cloudy</span></span></div></div>'
+};
+
+// Tool states: 0=idle, 1=active, 2=used
+function toolsHTML(s,t){
+  var sc=["","active","used"][s],tc=["","active","used"][t];
+  return '<div class="tool-mini '+sc+'" id="tm-search"><div class="t-icon">&#x1F50D;</div><div class="t-info"><div class="t-name">web_search(query)</div><div class="t-provides">Provides: real-time internet search results</div></div></div><div class="tool-mini '+tc+'" id="tm-temp"><div class="t-icon">&#x1F321;</div><div class="t-info"><div class="t-name">get_temperature(city)</div><div class="t-provides">Provides: live weather data for any city</div></div></div>';
+}
+
+// Plan states
+function planHTML(items){
+  var h="";
+  items.forEach(function(it,i){
+    var cls=it[0]==="done"?"done":it[0]==="now"?"now":"wait";
+    var ckCls=it[0]==="done"?"done":it[0]==="now"?"now":"";
+    var ck=it[0]==="done"?"&#x2713;":(i+1);
+    h+='<div class="tk '+cls+'"><div class="tk-ck '+ckCls+'">'+ck+'</div>'+it[1]+'</div>';
+  });
+  return h;
+}
+
+// ═══════ SIMPLE EXAMPLE (2 tools) ═══════
+var SIMPLE=[
+{phase:"",pill:"Step 1/12",know:K.empty,tools:[0,0],
+dec:["neutral","&#x2014;","Can I answer?","Waiting..."],
+plan:'<div style="color:var(--ink3);font-style:italic">No plan yet</div>',
+html:'<div class="sc sc-n el"><div class="sc-tag tg-human">Human</div><p><strong>&ldquo;What is the current temperature in the most populated city in the world?&rdquo;</strong></p></div><div class="sc sc-v el"><div class="sc-tag tg-reason">Agent</div><p>Received question. I don&rsquo;t have real-time data. Let me analyze my tools.</p></div>'},
+
+{phase:"analyze",pill:"Step 2/12 &middot; Analyze",know:K.empty,tools:[0,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; no real-time data"],
+plan:'<div style="color:var(--ink3);font-style:italic">Analyzing tools...</div>',
+html:'<div class="sc sc-t el"><div class="sc-tag tg-analyze">Analyze Tools</div><p>Reading tool descriptions to understand capabilities:</p></div><div class="sc sc-t el"><p><span class="tool-inline ti-b">&#x1F50D; web_search</span> &rarr; <strong>searches internet</strong> for real-time facts</p></div><div class="sc sc-t el"><p><span class="tool-inline ti-g">&#x1F321; get_temperature</span> &rarr; <strong>gets live weather</strong> but needs a city name as input</p></div><div class="sc sc-t el"><p><code>get_temperature</code> needs a city, so I must find the city <strong>first</strong> using <code>web_search</code>.</p></div>'},
+
+{phase:"plan",pill:"Step 3/12 &middot; Plan",know:K.empty,tools:[0,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; need to execute plan"],
+plan:planHTML([["now","Find most populated city"],["wait","Get temperature"],["wait","Answer user"]]),
+html:'<div class="sc sc-a el"><div class="sc-tag tg-plan">Generate Plan</div><p><strong>Step 1:</strong> <code>web_search</code> &rarr; find most populated city</p><p><strong>Step 2:</strong> <code>get_temperature</code> &rarr; get weather for that city</p><p><strong>Step 3:</strong> Combine results &rarr; answer user</p><p style="color:var(--ink3)">Order matters: Step 2 depends on Step 1. Can&rsquo;t parallelize.</p></div>'},
+
+{phase:"act",pill:"Step 4/12 &middot; Iter 1 Act",know:K.empty,tools:[1,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; calling web_search..."],
+plan:planHTML([["now","Find most populated city"],["wait","Get temperature"],["wait","Answer user"]]),
+html:'<div class="sc sc-v el"><div class="sc-tag tg-reason">Reason</div><p><strong>Thought:</strong> I need to find the most populated city first.</p></div>'+pIn('<span class="pk">System:</span> Answer the following questions as best you can.\nYou have access to the following tools:\n\n<span class="pv">web_search</span>: Search the internet. Input: query string\n<span class="pv">get_temperature</span>: Get weather. Input: city name\n\nUse the following format:\n<span class="py">Question:</span> the input question\n<span class="py">Thought:</span> your reasoning\n<span class="py">Action:</span> tool name\n<span class="py">Action Input:</span> tool input\n<span class="py">Observation:</span> tool result\n...\n<span class="py">Final Answer:</span> the answer\n\n<span class="pk">Question:</span> What is the current temperature in the\nmost populated city in the world?\n\n<span class="pk">Scratchpad:</span> <span class="pc">(empty &mdash; first iteration)</span>')+pOut('<span class="py">Thought:</span> I need to find the most populated city in the\nworld. I don\'t know this with certainty, so let me search.\n\n<span class="py">Action:</span> <span class="pv">web_search</span>\n<span class="py">Action Input:</span> most populated city in the world 2024\n\n<span class="pc">[STOPPED at "Observation:" &mdash; stop token prevents hallucination]</span>')+'<div class="sc sc-b el"><div class="sc-tag tg-act">Act: web_search</div><pre><span class="hl">web_search</span>("most populated city in the world 2024")</pre></div>'},
+
+{phase:"observe",pill:"Step 5/12 &middot; Iter 1 Observe",know:K.city,tools:[2,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; still need temperature"],
+plan:planHTML([["done","Find city &rarr; Tokyo"],["now","Get temperature"],["wait","Answer user"]]),
+html:pTool('Tokyo, Japan is the most populated metropolitan area\nin the world with approximately 37.4 million residents,\nfollowed by Delhi (32.9M) and Shanghai (29.2M).')+'<div class="sc sc-g el"><div class="sc-tag tg-observe">Observation added to scratchpad</div><div class="mini-result res-g">Tokyo, Japan &mdash; 37.4 million residents</div><p>Knowledge gap #1 filled. This result is now in the scratchpad and will be included in the next prompt.</p></div>'},
+
+{phase:"decide",pill:"Step 6/12 &middot; Iter 1 Decide",know:K.city,tools:[2,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; city known, temp missing"],
+plan:planHTML([["done","Find city &rarr; Tokyo"],["now","Get temperature"],["wait","Answer user"]]),
+html:'<div class="sc sc-a el"><div class="sc-tag tg-decide">Decide</div><p>&#x2713; City: Tokyo, Japan (37.4M) &mdash; <strong>known</strong></p><p>&#x2716; Temperature: ??? &mdash; <strong>missing</strong></p><p>Verdict: <strong>No.</strong> Loop back for another tool call.</p></div><div class="loop-back el">&#x21BA; LOOP BACK &rarr; Iteration 2</div>'},
+
+{phase:"act",pill:"Step 7/12 &middot; Iter 2 Act",know:K.city,tools:[2,1],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; calling get_temperature..."],
+plan:planHTML([["done","Find city &rarr; Tokyo"],["now","Get temperature"],["wait","Answer user"]]),
+html:'<div class="sc sc-v el"><div class="sc-tag tg-reason">Reason</div><p><strong>Thought:</strong> I know the city is Tokyo. Now I&rsquo;ll get the temperature.</p><p style="color:var(--ink3)">Key: using <strong>output of tool #1</strong> as <strong>input to tool #2</strong></p></div>'+pIn('<span class="pk">System:</span> Answer the following questions...\n<span class="pk">Tools:</span> web_search, get_temperature\n\n<span class="pk">Question:</span> What is the current temperature in the\nmost populated city in the world?\n\n<span class="pk">Scratchpad:</span>\n<span class="py">Thought:</span> I need to find the most populated city...\n<span class="py">Action:</span> web_search\n<span class="py">Action Input:</span> most populated city in the world 2024\n<span class="pv">Observation: Tokyo, Japan... 37.4 million residents</span>\n\n<span class="pc">^ The scratchpad now contains iteration 1&rsquo;s full history.\nThe prompt is BIGGER than before &mdash; this is the cost tradeoff.</span>')+pOut('<span class="py">Thought:</span> The most populated city is Tokyo, Japan with\n37.4 million people. Now I need the temperature there.\n\n<span class="py">Action:</span> <span class="pv">get_temperature</span>\n<span class="py">Action Input:</span> Tokyo, Japan\n\n<span class="pc">[STOPPED at "Observation:"]</span>')+'<div class="sc sc-b el"><div class="sc-tag tg-act">Act: get_temperature</div><pre><span class="hl">get_temperature</span>("Tokyo, Japan")</pre></div>'},
+
+{phase:"observe",pill:"Step 8/12 &middot; Iter 2 Observe",know:K.full,tools:[2,2],
+dec:["no","&#x2716;","Can I answer?","Checking..."],
+plan:planHTML([["done","Find city &rarr; Tokyo"],["done","Get temp &rarr; 28&#176;C"],["now","Answer user"]]),
+html:pTool('Tokyo, Japan: 28&#176;C (82&#176;F)\nPartly Cloudy | Humidity: 65% | Wind: 12 km/h SW')+'<div class="sc sc-g el"><div class="sc-tag tg-observe">Observation added to scratchpad</div><div class="mini-result res-g">28&#176;C (82&#176;F) &mdash; Partly Cloudy</div><p>Knowledge gap #2 filled. Both gaps now resolved.</p></div>'},
+
+{phase:"decide",pill:"Step 9/12 &middot; Iter 2 Decide",know:K.full,tools:[2,2],
+dec:["yes","&#x2714;","Can I answer?","YES! &mdash; all gaps filled"],
+plan:planHTML([["done","Find city &rarr; Tokyo"],["done","Get temp &rarr; 28&#176;C"],["now","Answer user"]]),
+html:'<div class="sc sc-a el"><div class="sc-tag tg-decide">Decide</div><p>&#x2713; City: Tokyo, Japan (37.4M) &mdash; <strong>known</strong></p><p>&#x2713; Temperature: 28&#176;C Partly Cloudy &mdash; <strong>known</strong></p><p>Verdict: <strong>Yes!</strong> Writing Final Answer.</p></div>'},
+
+{phase:"",pill:"Step 10/12 &middot; Final Answer",know:K.full,tools:[2,2],
+dec:["yes","&#x2714;","Answered!","All tasks complete"],
+plan:planHTML([["done","Find city &rarr; Tokyo"],["done","Get temp &rarr; 28&#176;C"],["done","Answer user &#x2713;"]]),
+html:pOut('<span class="py">Thought:</span> I now have all the information I need.\n\n<span class="py">Final Answer:</span> <span class="pv">The most populated city in the world is\nTokyo, Japan (37.4 million people). The current temperature\nin Tokyo is 28&#176;C (82&#176;F) with partly cloudy skies.</span>\n\n<span class="pc">[Parser detects "Final Answer:" &mdash; loop exits]</span>')+'<div class="sc sc-r el"><div class="sc-tag tg-answer">Final Answer</div><div class="final-box">Tokyo, Japan (37.4M people)<br>28&#176;C (82&#176;F) &mdash; Partly Cloudy</div></div><div class="sc sc-n el"><div class="sc-tag tg-human">Human</div><p><em>&ldquo;Thanks! That&rsquo;s exactly what I needed.&rdquo;</em></p></div>'},
+
+{phase:"",pill:"Step 11/12 &middot; Recap",know:K.full,tools:[2,2],
+dec:["yes","&#x2714;","Answered!","3 iterations, 2 tools"],
+plan:planHTML([["done","Find city &rarr; Tokyo"],["done","Get temp &rarr; 28&#176;C"],["done","Answer user &#x2713;"]]),
+html:'<div class="sc sc-v el"><p><strong>Recap: 3 iterations, 2 tool calls</strong></p><table class="recap"><tr><td style="color:var(--v);font-weight:600">Iter 1</td><td>Reason &rarr; web_search &rarr; Tokyo</td></tr><tr><td style="color:var(--g);font-weight:600">Iter 2</td><td>Reason &rarr; get_temperature &rarr; 28&#176;C</td></tr><tr><td style="color:var(--r);font-weight:600">Iter 3</td><td>Reason &rarr; Final Answer!</td></tr></table><p style="color:var(--ink3)">The entire agent = <strong>prompt template</strong> + <strong>for loop</strong> + <strong>regex parser</strong> + <strong>tool dict</strong></p></div>'}
+];
+
+// ═══════ COMPLEX EXAMPLE (6 tools) ═══════
+var CK={
+  empty:'<div class="k-section k-internal"><div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div><div style="padding-left:10px;color:var(--ink3)">General knowledge, language, reasoning</div></div><div class="k-section k-gaps"><div class="k-section-label"><div class="k-dot"></div>Knowledge Gaps</div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Weather in Austin: <em>???</em></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Venue options: <em>???</em></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Availability: <em>???</em></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Total cost: <em>???</em></span></div></div>',
+  w1:'<div class="k-section k-internal"><div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div><div style="padding-left:10px;color:var(--ink3)">General knowledge, language, reasoning</div></div><div class="k-section k-gaps"><div class="k-section-label"><div class="k-dot"></div>Learned from Tools</div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Weather:</strong> <span class="k-val">35&#176;C, Sunny, Hot &rarr; INDOOR</span></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Venue options: <em>???</em></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Availability: <em>???</em></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Total cost: <em>???</em></span></div></div>',
+  w2:'<div class="k-section k-internal"><div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div><div style="padding-left:10px;color:var(--ink3)">General knowledge, language, reasoning</div></div><div class="k-section k-gaps"><div class="k-section-label"><div class="k-dot"></div>Learned from Tools</div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Weather:</strong> <span class="k-val">35&#176;C &rarr; Indoor</span></span></div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Venue:</strong> <span class="k-val">Lakeview Hall $800/day</span></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Availability: <em>???</em></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Total cost: <em>???</em></span></div></div>',
+  w3:'<div class="k-section k-internal"><div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div><div style="padding-left:10px;color:var(--ink3)">General knowledge, language, reasoning</div></div><div class="k-section k-gaps"><div class="k-section-label"><div class="k-dot"></div>Learned from Tools</div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Weather:</strong> <span class="k-val">35&#176;C &rarr; Indoor</span></span></div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Venue:</strong> <span class="k-val">Lakeview Hall $800</span></span></div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Available:</strong> <span class="k-val">Friday 9am-5pm</span></span></div><div class="k-row"><div class="k-status"></div><span style="color:var(--ink3)">Total cost: <em>???</em></span></div></div>',
+  w4:'<div class="k-section k-internal"><div class="k-section-label"><div class="k-dot"></div>Internal Knowledge</div><div style="padding-left:10px;color:var(--ink3)">General knowledge, language, reasoning</div></div><div class="k-section k-gaps"><div class="k-section-label"><div class="k-dot"></div>Learned from Tools</div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Weather:</strong> <span class="k-val">35&#176;C &rarr; Indoor</span></span></div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Venue:</strong> <span class="k-val">Lakeview Hall $800</span></span></div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Available:</strong> <span class="k-val">Friday 9-5</span></span></div><div class="k-row"><div class="k-status filled">&#x2713;</div><span><strong>Total:</strong> <span class="k-val">$1,340</span></span></div></div>'
+};
+
+function cToolsHTML(states){
+  var tools=[
+    ["&#x1F50D;","web_search(q)","Internet search","var(--b)","var(--bl)"],
+    ["&#x26C5;","get_weather(city,date)","Weather forecast","var(--t)","var(--tl)"],
+    ["&#x1F3E2;","find_venues(city,type,n)","Venue search","var(--v)","var(--vl)"],
+    ["&#x2705;","check_availability(v,d,n)","Booking check","var(--gn)","var(--gnl)"],
+    ["&#x1F4CA;","calculator(expr)","Math calculations","var(--a)","var(--al)"],
+    ["&#x2709;","send_booking(v,d,n,e)","Book a venue","var(--r)","var(--rl)"]
+  ];
+  var h="";
+  tools.forEach(function(t,i){
+    var cls=states[i]===1?"active":states[i]===2?"used":"";
+    h+='<div class="tool-mini '+cls+'"><div class="t-icon">'+t[0]+'</div><div class="t-info"><div class="t-name">'+t[1]+'</div><div class="t-provides">'+t[2]+'</div></div></div>';
+  });
+  return h;
+}
+
+var COMPLEX=[
+{phase:"",pill:"Step 1/12",know:CK.empty,tools:[0,0,0,0,0,0],
+dec:["neutral","&#x2014;","Can I answer?","Waiting..."],
+plan:'<div style="color:var(--ink3);font-style:italic">No plan yet</div>',
+isComplex:true,
+html:'<div class="sc sc-n el"><div class="sc-tag tg-human">Human</div><p><strong>&ldquo;Plan a team offsite for 12 people in Austin, Texas next Friday. Find a venue, check weather, and estimate total costs including catering.&rdquo;</strong></p></div><div class="sc sc-v el"><div class="sc-tag tg-reason">Agent</div><p>Complex multi-step task. I have <strong>6 tools</strong>. Let me analyze which ones I need.</p></div>'},
+
+{phase:"analyze",pill:"Step 2/12 &middot; Analyze",know:CK.empty,tools:[0,0,0,0,0,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; need real-time data"],
+plan:'<div style="color:var(--ink3);font-style:italic">Analyzing 6 tools...</div>',
+isComplex:true,
+html:'<div class="sc sc-t el"><div class="sc-tag tg-analyze">Analyze 6 Tools</div><p><span class="tool-inline ti-b">web_search</span> general internet search</p><p><span class="tool-inline" style="border-color:var(--t);background:var(--tl);color:var(--t)">get_weather</span> weather forecast for city+date</p><p><span class="tool-inline" style="border-color:var(--v);background:var(--vl);color:var(--v)">find_venues</span> search venues by city, type, capacity</p><p><span class="tool-inline ti-g">check_availability</span> check if venue is bookable</p><p><span class="tool-inline" style="border-color:var(--a);background:var(--al);color:var(--a)">calculator</span> math calculations</p><p><span class="tool-inline" style="border-color:var(--r);background:var(--rl);color:var(--r)">send_booking</span> book a venue (user didn&rsquo;t ask to book yet)</p></div>'},
+
+{phase:"plan",pill:"Step 3/12 &middot; Plan",know:CK.empty,tools:[0,0,0,0,0,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; need to execute plan"],
+plan:planHTML([["now","Check weather"],["wait","Find venues"],["wait","Check availability"],["wait","Calculate costs"],["wait","Answer user"]]),
+isComplex:true,
+html:'<div class="sc sc-a el"><div class="sc-tag tg-plan">Generate Plan (5 steps)</div><p><strong>1.</strong> <code>get_weather</code> &rarr; decide indoor vs outdoor</p><p><strong>2.</strong> <code>find_venues</code> &rarr; search based on weather</p><p><strong>3.</strong> <code>check_availability</code> &rarr; verify best option</p><p><strong>4.</strong> <code>calculator</code> &rarr; total cost with catering</p><p><strong>5.</strong> Compile complete plan</p><p style="color:var(--ink3)">Skipping <code>web_search</code> (find_venues is more specific) and <code>send_booking</code> (user didn&rsquo;t ask to book).</p></div>'},
+
+{phase:"act",pill:"Step 4/12 &middot; Iter 1",know:CK.empty,tools:[0,1,0,0,0,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; calling get_weather..."],
+plan:planHTML([["now","Check weather"],["wait","Find venues"],["wait","Check availability"],["wait","Calculate costs"],["wait","Answer user"]]),
+isComplex:true,
+html:'<div class="sc sc-v el"><div class="sc-tag tg-reason">Reason (Iter 1)</div><p><strong>Thought:</strong> I need weather first to decide indoor/outdoor.</p></div>'+pIn('<span class="pk">Tools:</span> web_search, get_weather, find_venues,\ncheck_availability, calculator, send_booking\n\n<span class="pk">Question:</span> Plan a team offsite for 12 people in\nAustin, Texas next Friday...\n\n<span class="pk">Scratchpad:</span> <span class="pc">(empty)</span>')+pOut('<span class="py">Thought:</span> I need to check the weather in Austin for\nnext Friday to decide if we need indoor or outdoor.\n\n<span class="py">Action:</span> <span class="pv">get_weather</span>\n<span class="py">Action Input:</span> Austin, TX, next Friday')+pTool('Austin, TX &mdash; Next Friday:\n35&#176;C (95&#176;F) &mdash; Sunny and Hot\nUV Index: High | Humidity: 45%')+'<div class="sc sc-g el"><div class="mini-result res-g">35&#176;C &mdash; Too hot for outdoor &rarr; Need <strong>indoor</strong> venue</div></div><div class="loop-back el">&#x21BA; 1/5 done &mdash; loop back</div>'},
+
+{phase:"act",pill:"Step 5/12 &middot; Iter 2",know:CK.w1,tools:[0,2,1,0,0,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; 1/5 tasks done"],
+plan:planHTML([["done","Weather &rarr; 35&#176;C indoor"],["now","Find venues"],["wait","Check availability"],["wait","Calculate costs"],["wait","Answer user"]]),
+isComplex:true,
+html:'<div class="sc sc-v el"><div class="sc-tag tg-reason">Reason (Iter 2)</div><p><strong>Thought:</strong> 35&#176;C is too hot. I need indoor venues for 12.</p></div>'+pIn('<span class="pk">Scratchpad:</span>\nThought: I need to check weather...\nAction: get_weather\nAction Input: Austin, TX, next Friday\n<span class="pv">Observation: 35&#176;C (95&#176;F) Sunny and Hot</span>\n\n<span class="pc">^ Prompt is now bigger &mdash; includes iteration 1 history</span>')+pOut('<span class="py">Thought:</span> It\'s 35&#176;C &mdash; too hot for outdoor. Let me\nfind indoor venues that fit 12 people.\n\n<span class="py">Action:</span> <span class="pv">find_venues</span>\n<span class="py">Action Input:</span> Austin, TX, indoor meeting, 12')+pTool('3 venues found:\n\n1. Lakeview Hall     | Cap: 20 | $800/day\n   Downtown, A/C, catering avail ($45/person)\n\n2. The Boardroom     | Cap: 15 | $1,200/day\n   East Austin, premium catering ($65/person)\n\n3. Hill Country Ctr  | Cap: 50 | $950/day\n   South Austin, BYO catering')+'<div class="sc sc-g el"><div class="mini-result res-g">3 venues found &mdash; <strong>Lakeview Hall</strong> best value at $800/day</div></div><div class="loop-back el">&#x21BA; 2/5 done &mdash; loop back</div>'},
+
+{phase:"act",pill:"Step 6/12 &middot; Iter 3",know:CK.w2,tools:[0,2,2,1,0,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; 2/5 tasks done"],
+plan:planHTML([["done","Weather &rarr; indoor"],["done","Venues &rarr; Lakeview Hall"],["now","Check availability"],["wait","Calculate costs"],["wait","Answer user"]]),
+isComplex:true,
+html:'<div class="sc sc-v el"><div class="sc-tag tg-reason">Reason (Iter 3)</div><p><strong>Thought:</strong> Lakeview Hall is best value. Is it available Friday?</p></div>'+pOut('<span class="py">Action:</span> <span class="pv">check_availability</span>\n<span class="py">Action Input:</span> Lakeview Hall, next Friday, 12')+pTool('&#x2713; Lakeview Hall is AVAILABLE\nDate: Next Friday | Slot: 9:00 AM &mdash; 5:00 PM\nCapacity: 20 (your group: 12) &#x2713;\nCatering: Available at $45/person')+'<div class="sc sc-g el"><div class="mini-result res-g">Available! Friday 9am-5pm, catering at $45/person</div></div><div class="loop-back el">&#x21BA; 3/5 done &mdash; loop back</div>'},
+
+{phase:"act",pill:"Step 7/12 &middot; Iter 4",know:CK.w3,tools:[0,2,2,2,1,0],
+dec:["no","&#x2716;","Can I answer?","NO &mdash; 3/5 tasks done"],
+plan:planHTML([["done","Weather &rarr; indoor"],["done","Venues &rarr; Lakeview"],["done","Available &rarr; Friday 9-5"],["now","Calculate costs"],["wait","Answer user"]]),
+isComplex:true,
+html:'<div class="sc sc-v el"><div class="sc-tag tg-reason">Reason (Iter 4)</div><p><strong>Thought:</strong> Venue $800 + catering $45/person for 12. Let me calculate.</p></div>'+pOut('<span class="py">Action:</span> <span class="pv">calculator</span>\n<span class="py">Action Input:</span> 800 + (12 * 45)')+pTool('800 + (12 * 45) = 800 + 540 = <span class="pv">$1,340</span>')+'<div class="sc sc-g el"><div class="mini-result res-g">Total: $1,340 ($800 venue + $540 catering)</div></div>'},
+
+{phase:"decide",pill:"Step 8/12 &middot; Decide",know:CK.w4,tools:[0,2,2,2,2,0],
+dec:["yes","&#x2714;","Can I answer?","YES! &mdash; all 4 gaps filled"],
+plan:planHTML([["done","Weather &rarr; indoor"],["done","Venues &rarr; Lakeview"],["done","Available &rarr; Fri 9-5"],["done","Cost &rarr; $1,340"],["now","Answer user"]]),
+isComplex:true,
+html:'<div class="sc sc-a el"><div class="sc-tag tg-decide">Decide</div><p>&#x2713; Weather: 35&#176;C &rarr; indoor</p><p>&#x2713; Venue: Lakeview Hall, $800/day</p><p>&#x2713; Available: Friday 9am-5pm</p><p>&#x2713; Cost: $1,340 total</p><p>Verdict: <strong>Yes!</strong> All data gathered.</p></div><div class="sc sc-t el"><p><strong>Tools used:</strong> get_weather, find_venues, check_availability, calculator (4 of 6)</p><p><strong>Tools skipped:</strong> <code>web_search</code> (find_venues was more specific), <code>send_booking</code> (user didn&rsquo;t ask to book yet)</p></div>'},
+
+{phase:"",pill:"Step 9/12 &middot; Final Answer",know:CK.w4,tools:[0,2,2,2,2,0],
+dec:["yes","&#x2714;","Answered!","5 iterations, 4 tools"],
+plan:planHTML([["done","Weather"],["done","Venues"],["done","Available"],["done","Cost"],["done","Answer &#x2713;"]]),
+isComplex:true,
+html:pOut('<span class="py">Final Answer:</span> <span class="pv">Here is your offsite plan:\n\nVenue: Lakeview Hall, Downtown Austin\nDate: Next Friday, 9:00 AM &mdash; 5:00 PM\nCapacity: 20 (your group: 12)\nWeather: 35&#176;C &mdash; indoor with A/C\nCatering: On-site, $45/person\nTotal cost: $1,340 ($800 venue + $540 catering)</span>')+'<div class="sc sc-r el"><div class="sc-tag tg-answer">Final Answer</div><div class="final-box">Lakeview Hall &mdash; Austin, TX<br>Friday 9am-5pm &mdash; 12 people<br>$1,340 total (venue + catering)</div></div>'},
+
+{phase:"",pill:"Step 10/12 &middot; Recap",know:CK.w4,tools:[0,2,2,2,2,0],
+dec:["yes","&#x2714;","Answered!","5 iterations, 4 tools used, 2 skipped"],
+plan:planHTML([["done","Weather"],["done","Venues"],["done","Available"],["done","Cost"],["done","Answer &#x2713;"]]),
+isComplex:true,
+html:'<div class="sc sc-v el"><p><strong>Recap: 5 iterations, 4 tool calls, 2 tools skipped</strong></p><table class="recap"><tr><td style="color:var(--t);font-weight:700">Iter 1</td><td>get_weather &rarr; 35&#176;C, indoor needed</td></tr><tr><td style="color:var(--v);font-weight:700">Iter 2</td><td>find_venues &rarr; Lakeview Hall $800</td></tr><tr><td style="color:var(--gn);font-weight:700">Iter 3</td><td>check_availability &rarr; Available Fri 9-5</td></tr><tr><td style="color:var(--a);font-weight:700">Iter 4</td><td>calculator &rarr; $1,340 total</td></tr><tr><td style="color:var(--r);font-weight:700">Iter 5</td><td>Final Answer!</td></tr></table><p style="color:var(--ink3)">The agent intelligently chose 4 of 6 tools and chained their outputs across iterations.</p></div>'}
+];
+
+var scenes=SIMPLE,curEx="simple",cur=-1,timer=null,autoOn=false;
+
+function setPhase(p){
+  phIds.forEach(function(id){
+    var el=document.getElementById(id);
+    el.className="ph"+(id==="ph-"+p?" on-"+p:"");
+  });
+}
+
+function render(dir){
+  if(cur<0)return;
+  var s=scenes[cur];
+  dir=dir||1;
+
+  // Header
+  pill.innerHTML=s.pill;
+  ff.style.width=((cur+1)/scenes.length*100)+"%";
+  ft.textContent=(cur+1)+"/"+scenes.length;
+  bp.disabled=cur<=0;bn.disabled=cur>=scenes.length-1;
+
+  // Phase
+  setPhase(s.phase);
+
+  // Knowledge
+  document.getElementById("knowContent").innerHTML=s.know;
+
+  // Tools
+  document.getElementById("toolContent").innerHTML=s.isComplex?cToolsHTML(s.tools):toolsHTML(s.tools[0],s.tools[1]);
+
+  // Decision
+  var d=s.dec;
+  var db=document.getElementById("decBox");
+  db.className="dec "+d[0];
+  db.innerHTML='<div class="dec-icon">'+d[1]+'</div><div><div class="dec-text">'+d[2]+'</div><div class="dec-sub">'+d[3]+'</div></div>';
+
+  // Plan
+  document.getElementById("planContent").innerHTML=s.plan;
+
+  // Step content
+  var area=document.getElementById("stepArea");
+  var old=document.getElementById("stepContent");
+  var fresh=document.createElement("div");
+  fresh.id="stepContent";
+  fresh.innerHTML=s.html;
+
+  var xIn=dir>0?40:-40;
+  if(typeof anime!=="undefined"){
+    anime.set(fresh,{opacity:0,translateX:xIn});
+    if(old){
+      anime({targets:old,opacity:0,translateX:dir>0?-30:30,duration:150,easing:'easeInQuad',complete:function(){
+        old.remove();area.appendChild(fresh);
+        anime({targets:fresh,opacity:1,translateX:0,duration:300,easing:'easeOutCubic'});
+        anime({targets:fresh.querySelectorAll(".el"),opacity:[0,1],translateY:[16,0],delay:anime.stagger(100,{start:100}),duration:300,easing:'easeOutCubic'});
+      }});
+    } else {area.appendChild(fresh);anime({targets:fresh,opacity:1,translateX:0,duration:300,easing:'easeOutCubic'});}
+    // Bounce decision box
+    anime({targets:db,scale:[.9,1],duration:350,easing:'easeOutBack'});
+  } else {
+    if(old)old.remove();area.appendChild(fresh);
+  }
+  area.scrollTop=0;
+}
+
+function go(i,dir){cur=Math.max(0,Math.min(scenes.length-1,i));render(dir);}
+
+function reset(){
+  stopA();cur=-1;
+  bp.disabled=true;bn.disabled=false;
+  pill.textContent="press next to begin";
+  ff.style.width="0";ft.textContent="0/"+scenes.length;
+  setPhase("");
+  var isC=curEx==="complex";
+  document.getElementById("knowContent").innerHTML=isC?CK.empty:K.empty;
+  document.getElementById("toolContent").innerHTML=isC?cToolsHTML([0,0,0,0,0,0]):toolsHTML(0,0);
+  var db=document.getElementById("decBox");db.className="dec neutral";
+  db.innerHTML='<div class="dec-icon">&#x2014;</div><div><div class="dec-text">Can I answer?</div><div class="dec-sub">Waiting...</div></div>';
+  document.getElementById("planContent").innerHTML='<div style="color:var(--ink3);font-style:italic">No plan yet</div>';
+  var n=scenes.length;
+  document.getElementById("stepArea").innerHTML='<div id="stepContent"><div class="sc" style="text-align:center;padding:32px 16px"><p>Press <strong>Next</strong> or <strong>Space</strong> to watch the agent think.</p><p style="color:var(--ink3);margin-top:4px">'+n+' steps &middot; '+(isC?'6 tools':'2 tools')+' &middot; keyboard &#x2190;&#x2192;</p></div></div>';
+}
+
+window.switchEx=function(ex){
+  stopA();curEx=ex;
+  scenes=ex==="complex"?COMPLEX:SIMPLE;
+  document.getElementById("tab-simple").classList.toggle("on",ex==="simple");
+  document.getElementById("tab-complex").classList.toggle("on",ex==="complex");
+  // Update question display
+  var qEl=document.querySelector(".d-question");
+  if(qEl) qEl.innerHTML=ex==="complex"?'&ldquo;Plan a team offsite for 12 people in Austin, Texas next Friday. Find a venue, check weather, and estimate costs.&rdquo;':'&ldquo;What is the current temperature in the most populated city in the world?&rdquo;';
+  reset();
+};
+
+function stopA(){autoOn=false;if(timer){clearInterval(timer);timer=null;}bau.textContent="Auto";bau.classList.remove("on");}
+
+bn.onclick=function(){if(cur<scenes.length-1)go(cur<0?0:cur+1,1);};
+bp.onclick=function(){if(cur>0)go(cur-1,-1);};
+brst.onclick=reset;
+bau.onclick=function(){if(autoOn){stopA();return;}autoOn=true;bau.textContent="Pause";bau.classList.add("on");if(cur<0)go(0,1);timer=setInterval(function(){if(cur<scenes.length-1)go(cur+1,1);else stopA();},3500);};
+document.onkeydown=function(e){if(e.key==="ArrowRight"||e.key===" "){e.preventDefault();bn.onclick();}else if(e.key==="ArrowLeft"){e.preventDefault();bp.onclick();}else if(e.key==="r"||e.key==="R")reset();};
+})();
+</script>
+</body>
+</html>

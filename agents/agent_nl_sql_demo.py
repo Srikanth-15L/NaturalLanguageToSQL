@@ -27,7 +27,7 @@ import argparse
 
 from dotenv import load_dotenv
 
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_core.tools import tool
 
 # Rich imports for beautiful terminal output
@@ -47,27 +47,33 @@ load_dotenv()
 
 console = Console()
 
-parser = argparse.ArgumentParser(description="Natural Language to SQL Agent")
-parser.add_argument(
-    "--verbose", "-v",
-    action="store_true",
-    help="Show the FULL prompt sent to the LLM (not just the scratchpad)",
-)
-args = parser.parse_args()
-VERBOSE = args.verbose
-
-if not os.getenv("OPENAI_API_KEY"):
-    console.print(
-        Panel(
-            "[bold red]ERROR:[/bold red] OPENAI_API_KEY not found in environment.\n\n"
-            "Create a [cyan].env[/cyan] file with:\n"
-            "  OPENAI_API_KEY=sk-...\n\n"
-            "Or export it in your shell.",
-            title="Missing API Key",
-            border_style="red",
-        )
+# Argument parsing -- only when run directly (not when imported by FastAPI)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Natural Language to SQL Agent")
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show the FULL prompt sent to the LLM (not just the scratchpad)",
     )
-    sys.exit(1)
+    args = parser.parse_args()
+    VERBOSE = args.verbose
+else:
+    VERBOSE = False
+
+# API key check -- only exit when run as a script, not when imported
+if not os.getenv("GROQ_API_KEY"):
+    if __name__ == "__main__":
+        console.print(
+            Panel(
+                "[bold red]ERROR:[/bold red] GROQ_API_KEY not found in environment.\n\n"
+                "Create a [cyan].env[/cyan] file with:\n"
+                "  GROQ_API_KEY=gsk_...\n\n"
+                "Or export it in your shell.",
+                title="Missing API Key",
+                border_style="red",
+            )
+        )
+        sys.exit(1)
 
 
 # =============================================================================
@@ -85,10 +91,15 @@ if not os.getenv("OPENAI_API_KEY"):
 def create_database() -> sqlite3.Connection:
     """Create and populate the in-memory SQLite database."""
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "demo_company.db")
-    conn = sqlite3.connect(db_path)
+    print(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     cursor = conn.cursor()
 
     # --- Create tables ---
+
+    cursor.execute("DROP TABLE IF EXISTS departments")
+    cursor.execute("DROP TABLE IF EXISTS employees")
+    cursor.execute("DROP TABLE IF EXISTS projects")
 
     cursor.execute("""
         CREATE TABLE departments (
@@ -370,8 +381,8 @@ def parse_react_output(text: str) -> dict:
 # LLM SETUP
 # =============================================================================
 
-llm = ChatOpenAI(
-    model="gpt-4o-mini",
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
     temperature=0,
 ).bind(stop=["\nObservation:", "Observation:"])
 
@@ -648,16 +659,17 @@ def show_parse_error(text: str, error: str):
 #   list_tables -> get_schema -> (optional: validate_sql) -> run_sql -> Final Answer
 # =============================================================================
 
-def run_react_agent(question: str, max_iters: int = 12) -> str | None:
+def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = False) -> str | dict | None:
     """
     Run the SQL ReAct agent on a natural language question.
 
     Args:
         question: A natural language question about the database.
         max_iters: Maximum iterations before giving up.
+        return_steps: If True, returns a dict with 'final_answer' and 'steps'.
 
     Returns:
-        The final answer string, or None if the agent failed.
+        The final answer string, a dict if return_steps is True, or None if the agent failed.
     """
     show_question(question)
 
@@ -735,6 +747,8 @@ def run_react_agent(question: str, max_iters: int = 12) -> str | None:
             show_decision(True, "")
             show_final_answer(parsed["final_answer"])
             show_recap(step_log, time.time() - start_time)
+            if return_steps:
+                return {"final_answer": parsed["final_answer"], "steps": step_log}
             return parsed["final_answer"]
 
         # --- 4b. Run the tool ---
@@ -776,6 +790,8 @@ def run_react_agent(question: str, max_iters: int = 12) -> str | None:
         )
     )
     show_recap(step_log, time.time() - start_time)
+    if return_steps:
+        return {"final_answer": None, "steps": step_log}
     return None
 
 

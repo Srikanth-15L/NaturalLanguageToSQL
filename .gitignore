@@ -1,29 +1,57 @@
 # Python
 __pycache__/
 *.py[oc]
+*.pyo
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.eggs/
 
 # Virtual environments
-.venv
+.venv/
+venv/
+env/
 
-# Environment variables (contains secrets)
+# Environment variables -- never commit real secrets
 .env
 
-# Jupyter checkpoints
+# uv
+# uv.lock is intentionally committed so installs are reproducible
+# .python-version is committed too
+
+# Jupyter
 .ipynb_checkpoints/
+*.ipynb_checkpoints
 
 # IDE / editor
 .claude/
+.gemini/
 .vscode/
 .idea/
 *.swp
 *.swo
+*.suo
 
 # OS
 .DS_Store
+Thumbs.db
+desktop.ini
 
 # Logs
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend build output
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Node modules (frontend)
+frontend/node_modules/
+
+# SQLite database (demo data -- regenerated on startup, no need to track)
+# demo_company.db

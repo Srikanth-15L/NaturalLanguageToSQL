@@ -8,8 +8,8 @@ Built on top of the same ReAct (Reason + Act) loop as search_agent.py,
 but all the tools here are SQL-specific.
 
 Usage:
-    python sql_agent.py
-    python sql_agent.py --verbose   # prints the full prompt each iteration
+    python core/sql_agent.py
+    python core/sql_agent.py --verbose   # prints the full prompt each iteration
 
 Requirements:
     uv pip install langchain langchain-groq langchain-core python-dotenv rich

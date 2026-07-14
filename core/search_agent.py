@@ -8,8 +8,8 @@ No AgentExecutor, no LangGraph -- just the raw loop, a prompt string,
 regex parsing, and a plain dict of tools.
 
 Usage:
-    python search_agent.py
-    python search_agent.py --verbose   # shows the full prompt on each iteration
+    python core/search_agent.py
+    python core/search_agent.py --verbose   # shows the full prompt on each iteration
 
 Requirements:
     uv pip install langchain langchain-openai langchain-core python-dotenv rich requests

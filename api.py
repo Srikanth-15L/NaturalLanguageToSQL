@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import sqlite3
 
-from agents.sql_agent import run_react_agent, DB_CONN
+from core.sql_agent import run_react_agent, DB_CONN
 
 app = FastAPI(title="NL to SQL Agent API")
 

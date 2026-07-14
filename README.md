@@ -50,10 +50,10 @@ Open **http://localhost:5173** in your browser.
 
 ```bash
 # SQL agent (natural language to SQL)
-uv run python agents/sql_agent.py
-uv run python agents/sql_agent.py --verbose
+uv run python core/sql_agent.py
+uv run python core/sql_agent.py --verbose
 
 # Search agent (web search, weather, calculator)
-uv run python agents/search_agent.py
-uv run python agents/search_agent.py --verbose
+uv run python core/search_agent.py
+uv run python core/search_agent.py --verbose
 ```

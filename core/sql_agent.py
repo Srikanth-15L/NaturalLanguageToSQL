@@ -4,19 +4,17 @@ Natural Language to SQL Agent
 Converts plain English questions into SQL queries, runs them against
 a local SQLite database, and returns a readable answer.
 
-Built on top of the same ReAct (Reason + Act) loop as search_agent.py,
-but all the tools here are SQL-specific.
+Built using native Tool-Calling (Function Calling) message loops.
 
 Usage:
     python core/sql_agent.py
-    python core/sql_agent.py --verbose   # prints the full prompt each iteration
+    python core/sql_agent.py --verbose   # prints messages on every iteration
 
 Requirements:
     uv pip install langchain langchain-groq langchain-core python-dotenv rich
 """
 
 import os
-import re
 import sys
 import time
 import sqlite3
@@ -25,6 +23,8 @@ import argparse
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -37,14 +37,12 @@ load_dotenv()
 
 console = Console()
 
-# Only parse CLI args when the script is run directly.
-# When api.py imports this module, we skip argparse entirely.
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Natural Language to SQL Agent")
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
-        help="Print the full prompt sent to the LLM on every iteration",
+        help="Print the message payload sent to the LLM on every iteration",
     )
     args = parser.parse_args()
     VERBOSE = args.verbose
@@ -69,12 +67,6 @@ if not os.getenv("GROQ_API_KEY"):
 # -------------------------------------------------------------------
 # Database setup
 # -------------------------------------------------------------------
-# We use a file-based SQLite DB (demo_company.db) with three tables:
-#   departments, employees, projects
-#
-# The tables are always dropped and recreated on startup so the demo
-# starts from a clean, predictable state.
-# -------------------------------------------------------------------
 
 def create_database() -> sqlite3.Connection:
     """Create and seed the demo SQLite database, return the connection."""
@@ -83,7 +75,6 @@ def create_database() -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False)
     cursor = conn.cursor()
 
-    # Drop and recreate so we always start fresh
     cursor.execute("DROP TABLE IF EXISTS departments")
     cursor.execute("DROP TABLE IF EXISTS employees")
     cursor.execute("DROP TABLE IF EXISTS projects")
@@ -166,7 +157,6 @@ def create_database() -> sqlite3.Connection:
     return conn
 
 
-# Global DB connection shared by all tools and the FastAPI routes
 DB_CONN = create_database()
 
 
@@ -217,7 +207,6 @@ def run_sql(query: str) -> str:
     """Execute a SQL query against the database and return the results. Input is a valid SQL SELECT query. Only SELECT queries are allowed for safety. Always get the schema first so you use correct column names. Do NOT wrap the query in quotes."""
     query = query.strip().strip("'\"").rstrip(";").strip()
 
-    # Only allow read-only queries
     if not query.upper().startswith(("SELECT", "PRAGMA", "WITH")):
         return "Error: only SELECT queries are allowed. Do not use INSERT, UPDATE, DELETE, DROP, etc."
 
@@ -230,7 +219,6 @@ def run_sql(query: str) -> str:
         if not rows:
             return f"Query returned 0 rows.\nColumns: {', '.join(columns)}"
 
-        # Simple pipe-delimited table, capped at 50 rows
         result_lines = [" | ".join(str(c) for c in columns)]
         result_lines.append("-" * len(result_lines[0]))
         for row in rows[:50]:
@@ -254,7 +242,6 @@ def validate_sql(query: str) -> str:
 
     cursor = DB_CONN.cursor()
     try:
-        # EXPLAIN parses the query without actually running it
         cursor.execute(f"EXPLAIN {query}")
         return "Valid: the SQL syntax is correct and all referenced tables/columns exist."
     except Exception as e:
@@ -264,83 +251,27 @@ def validate_sql(query: str) -> str:
 tools = [list_tables, get_schema, run_sql, validate_sql]
 tool_registry = {t.name: t for t in tools}
 
-tools_text = "\n".join(f"{t.name}: {t.description}" for t in tools)
-tool_names = ", ".join(t.name for t in tools)
-
 
 # -------------------------------------------------------------------
-# ReAct prompt (tuned for SQL workflows)
-# -------------------------------------------------------------------
-# The LLM is instructed to always follow the same order:
-#   list_tables -> get_schema -> validate_sql -> run_sql -> Final Answer
-# This prevents it from guessing column names or skipping validation.
+# System Prompt & LLM Setup
 # -------------------------------------------------------------------
 
-REACT_PROMPT = """You are a helpful SQL assistant. You convert natural language questions into SQL queries, execute them, and return clear answers.
+SYSTEM_PROMPT = """You are a helpful SQL assistant. You convert natural language questions into SQL queries, execute them, and return clear answers.
 
-You have access to the following tools:
+You have access to tools to interact with the SQLite database.
+Follow these workflow rules:
+1. ALWAYS call list_tables first to see what tables are available.
+2. ALWAYS call get_schema before writing any SQL to know the column names. Do NOT guess column names.
+3. ALWAYS call validate_sql to verify syntax before calling run_sql.
+4. Call run_sql to execute the validated query.
+5. Provide a clear, human-readable final answer based on the query results.
+"""
 
-{tools}
-
-IMPORTANT WORKFLOW -- follow these steps IN ORDER, do NOT skip any:
-1. ALWAYS start with list_tables to see what tables are available.
-2. ALWAYS use get_schema on the relevant tables to learn the exact column names. NEVER guess column names.
-3. ALWAYS use validate_sql to check your SQL query BEFORE running it.
-4. Use run_sql to execute the validated query.
-5. Interpret the results and give a clear, human-readable final answer.
-
-RULES:
-- You MUST call validate_sql before run_sql. No exceptions.
-- You MUST call get_schema before writing any SQL. Do not guess column names.
-- If validate_sql returns an error, fix the query and validate again before running.
-
-Use the following format:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
-
-Begin!
-
-Question: {input}
-{scratchpad}"""
-
-
-def parse_react_output(text: str) -> dict:
-    """
-    Parse the LLM's ReAct-formatted output.
-
-    Returns either:
-      {"final_answer": "..."}  -- model is done
-      {"action": "...", "action_input": "..."}  -- model wants to call a tool
-
-    Raises ValueError if neither pattern is found.
-    """
-    final_match = re.search(r"Final Answer:\s*(.*)", text, re.DOTALL)
-    if final_match:
-        return {"final_answer": final_match.group(1).strip()}
-
-    action_match = re.search(r"Action:\s*(.*?)(?:\n|$)", text)
-    input_match = re.search(r"Action Input:\s*(.*)", text, re.DOTALL)
-    if action_match and input_match:
-        return {
-            "action": action_match.group(1).strip(),
-            "action_input": input_match.group(1).strip(),
-        }
-
-    raise ValueError(f"Could not parse LLM output:\n{text}")
-
-
-# Stop sequences prevent the LLM from writing fake Observations
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
     temperature=0,
-).bind(stop=["\nObservation:", "Observation:"])
+)
+llm_with_tools = llm.bind_tools(tools)
 
 
 # -------------------------------------------------------------------
@@ -349,9 +280,9 @@ llm = ChatGroq(
 
 def show_banner():
     banner_text = Text()
-    banner_text.append("\n  Natural Language to SQL Agent\n", style="bold bright_green")
+    banner_text.append("\n  Natural Language to SQL Agent (Tool-Calling)\n", style="bold bright_green")
     banner_text.append("  Ask questions in English, get SQL answers\n", style="dim green")
-    banner_text.append("  Built from scratch with LangChain + SQLite\n", style="dim")
+    banner_text.append("  Built using native LLM Tool-Calling bindings\n", style="dim")
 
     console.print(Panel(banner_text, border_style="bright_green", padding=(1, 2)))
 
@@ -370,16 +301,11 @@ def show_banner():
 
     console.print(tool_table)
     console.print()
-
     show_database_summary()
-
-    if VERBOSE:
-        console.print("[dim italic]  --verbose mode: full prompts will be shown[/dim italic]\n")
 
 
 def show_database_summary():
     cursor = DB_CONN.cursor()
-
     db_table = Table(
         title="Database Contents",
         border_style="green",
@@ -403,14 +329,7 @@ def show_database_summary():
 
 
 def show_question(question: str):
-    console.print(
-        Panel(
-            f"[bold white]{question}[/bold white]",
-            title="[bold blue]Your Question[/bold blue]",
-            border_style="blue",
-            padding=(0, 2),
-        )
-    )
+    console.print(Panel(f"[bold white]{question}[/bold white]", title="[bold blue]Your Question[/bold blue]", border_style="blue", padding=(0, 2)))
     console.print()
 
 
@@ -419,115 +338,42 @@ def show_iteration_header(n: int):
     console.print()
 
 
-def show_scratchpad(scratchpad: str):
-    content = scratchpad.strip() if scratchpad.strip() else "(empty -- first iteration)"
-    console.print(
-        Panel(
-            content,
-            title="[bold blue]Scratchpad (agent memory)[/bold blue]",
-            border_style="blue",
-            padding=(0, 1),
-        )
-    )
+def show_message_payload(messages: list):
+    payload = ""
+    for msg in messages:
+        role = msg.__class__.__name__.replace("Message", "")
+        content = msg.content
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            content += f"\n[Tool Calls: {msg.tool_calls}]"
+        payload += f"[bold cyan]{role}:[/bold cyan] {content}\n---\n"
+    console.print(Panel(payload.strip(), title="[bold blue]Message History (Agent Context)[/bold blue]", border_style="blue", padding=(0, 1)))
     console.print()
 
 
-def show_full_prompt(prompt: str):
-    console.print(
-        Panel(
-            Syntax(prompt, "text", theme="monokai", word_wrap=True),
-            title="[bold blue]FULL PROMPT SENT TO LLM[/bold blue]",
-            border_style="bright_blue",
-            padding=(0, 1),
-        )
-    )
+def show_llm_response(msg: AIMessage):
+    content = msg.content if msg.content else "(No text output)"
+    if msg.tool_calls:
+        content += f"\n\n[bold magenta]Tool Calls requested:[/bold magenta]\n"
+        for call in msg.tool_calls:
+            content += f" - {call['name']}({call['args']})\n"
+    console.print(Panel(content.strip(), title="[bold magenta]LLM Output[/bold magenta]", border_style="bright_magenta", padding=(0, 1)))
     console.print()
 
 
-def show_llm_output(text: str):
+def show_tool_execution(tool_name: str, tool_input: dict, result: str):
     console.print(
         Panel(
-            Syntax(text, "text", theme="monokai", word_wrap=True),
-            title="[bold magenta]LLM Output[/bold magenta]",
-            border_style="bright_magenta",
-            padding=(0, 1),
-        )
-    )
-    console.print()
-
-
-def show_parsed(parsed: dict):
-    if "final_answer" in parsed:
-        content = f"[bold green]Final Answer:[/bold green] {parsed['final_answer']}"
-    else:
-        content = (
-            f"[bold cyan]Action:[/bold cyan]       {parsed['action']}\n"
-            f"[bold cyan]Action Input:[/bold cyan] {parsed['action_input']}"
-        )
-    console.print(
-        Panel(
-            content,
-            title="[bold yellow]Parsed[/bold yellow]",
-            border_style="yellow",
-            padding=(0, 1),
-        )
-    )
-    console.print()
-
-
-def show_tool_execution(tool_name: str, tool_input: str, result: str):
-    icons = {
-        "list_tables":  "[bold yellow]TABLES[/bold yellow]",
-        "get_schema":   "[bold blue]SCHEMA[/bold blue]",
-        "run_sql":      "[bold green]SQL[/bold green]",
-        "validate_sql": "[bold cyan]VALIDATE[/bold cyan]",
-    }
-    icon = icons.get(tool_name, "[bold white]TOOL[/bold white]")
-
-    console.print(
-        Panel(
-            f"{icon} [bold]{tool_name}[/bold]([cyan]{tool_input}[/cyan])\n\n"
-            f"[green]Result:[/green]\n{result}",
+            f"[bold cyan]Tool:[/bold cyan] {tool_name}\n[bold cyan]Input:[/bold cyan] {tool_input}\n\n[green]Result:[/green]\n{result}",
             title="[bold green]Tool Execution[/bold green]",
             border_style="green",
-            padding=(0, 1),
-        )
-    )
-    console.print()
-
-
-def show_decision(can_answer: bool, reason: str, next_iter: int = None):
-    if can_answer:
-        status = "[bold green]YES -- delivering final answer[/bold green]"
-        border = "green"
-    else:
-        status = f"[bold red]NO[/bold red] -- {reason}"
-        border = "red"
-
-    content = f"Can I answer the question?  {status}"
-    if not can_answer and next_iter:
-        content += f"\n\n[bold cyan]>> LOOP BACK to Iteration {next_iter}[/bold cyan]"
-
-    console.print(
-        Panel(
-            content,
-            title="[bold yellow]Decision[/bold yellow]",
-            border_style=border,
-            padding=(0, 1),
+            padding=(0, 1)
         )
     )
     console.print()
 
 
 def show_final_answer(answer: str):
-    console.print(
-        Panel(
-            f"[bold white]{answer}[/bold white]",
-            title="[bold green]FINAL ANSWER[/bold green]",
-            border_style="bright_green",
-            padding=(1, 2),
-        )
-    )
+    console.print(Panel(f"[bold white]{answer}[/bold white]", title="[bold green]FINAL ANSWER[/bold green]", border_style="bright_green", padding=(1, 2)))
     console.print()
 
 
@@ -549,7 +395,7 @@ def show_recap(steps: list, total_time: float):
         result_preview = s.get("result_preview", "")
         if len(result_preview) > 60:
             result_preview = result_preview[:57] + "..."
-        input_preview = s.get("input", "--")
+        input_preview = str(s.get("input", "--"))
         if len(input_preview) > 40:
             input_preview = input_preview[:37] + "..."
         table.add_row(
@@ -566,48 +412,25 @@ def show_recap(steps: list, total_time: float):
     console.print()
 
 
-def show_parse_error(text: str, error: str):
-    console.print(
-        Panel(
-            f"[bold red]Parse Error:[/bold red] {error}\n\n"
-            f"[dim]Raw LLM output:[/dim]\n{text}",
-            title="[bold red]ERROR[/bold red]",
-            border_style="red",
-            padding=(0, 1),
-        )
-    )
-    console.print()
-
-
 # -------------------------------------------------------------------
-# The agent loop
-# -------------------------------------------------------------------
-# Each iteration:
-#   1. Build the prompt (template + growing scratchpad)
-#   2. Call the LLM (stops before writing "Observation:")
-#   3. Parse: Final Answer -> done; Action -> run tool, append, loop
-#
-# The typical SQL workflow looks like:
-#   list_tables -> get_schema -> validate_sql -> run_sql -> Final Answer
+# The Agent Loop (Tool-Calling Implementation)
 # -------------------------------------------------------------------
 
 def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = False) -> str | dict | None:
     """
-    Run the ReAct loop on a natural language database question.
+    Run the tool-calling loop on a natural language database question.
 
     Args:
         question: Plain English question about the database.
-        max_iters: Safety cap on the number of Thought/Action cycles.
-        return_steps: When True, returns a dict with both the answer and
-                      the step log (used by the API endpoint).
-
-    Returns:
-        The final answer string, a {"final_answer": ..., "steps": [...]} dict
-        if return_steps is True, or None if the agent ran out of iterations.
+        max_iters: Safety cap on the number of iterations.
+        return_steps: When True, returns a dict with the final answer and step logs.
     """
     show_question(question)
 
-    scratchpad = ""
+    messages = [
+        SystemMessage(content=SYSTEM_PROMPT),
+        HumanMessage(content=question)
+    ]
     step_log = []
     start_time = time.time()
 
@@ -615,106 +438,80 @@ def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = Fal
         iter_start = time.time()
         show_iteration_header(step)
 
-        # Verbose mode shows the entire prompt; default shows just the scratchpad
         if VERBOSE:
-            full_prompt = REACT_PROMPT.format(
-                tools=tools_text,
-                tool_names=tool_names,
-                input=question,
-                scratchpad=scratchpad,
-            )
-            show_full_prompt(full_prompt)
-        else:
-            show_scratchpad(scratchpad)
-
-        prompt = REACT_PROMPT.format(
-            tools=tools_text,
-            tool_names=tool_names,
-            input=question,
-            scratchpad=scratchpad,
-        )
+            show_message_payload(messages)
 
         try:
-            ai_response = llm.invoke(prompt)
-            text = ai_response.content
+            response = llm_with_tools.invoke(messages)
         except Exception as e:
-            console.print(
-                Panel(
-                    f"[bold red]LLM call failed:[/bold red] {e}",
-                    title="[bold red]ERROR[/bold red]",
-                    border_style="red",
-                )
-            )
+            console.print(Panel(f"[bold red]LLM call failed:[/bold red] {e}", title="[bold red]ERROR[/bold red]", border_style="red"))
             return None
 
-        show_llm_output(text)
+        show_llm_response(response)
 
-        try:
-            parsed = parse_react_output(text)
-        except ValueError as e:
-            show_parse_error(text, str(e))
-            scratchpad += text + "\nObservation: Your output was not in the correct format. Please use the format: Thought/Action/Action Input or Thought/Final Answer.\n"
-            step_log.append({
-                "iteration": step,
-                "action": "PARSE ERROR",
-                "input": "--",
-                "result_preview": "Format error -- retrying",
-                "time": time.time() - iter_start,
-            })
-            show_decision(False, "Output could not be parsed -- retrying", step + 1)
-            continue
+        # If LLM wants to call one or more tools
+        if response.tool_calls:
+            # We append the assistant's request message to the conversational history
+            messages.append(response)
 
-        show_parsed(parsed)
+            for tool_call in response.tool_calls:
+                name = tool_call["name"]
+                args = tool_call["args"]
+                call_id = tool_call["id"]
 
-        if "final_answer" in parsed:
+                if name not in tool_registry:
+                    result = f"Error: unknown tool '{name}'."
+                else:
+                    try:
+                        # Extract string input argument if tool expects string directly
+                        # (LangChain tools decorated with @tool expect positional/keyword args)
+                        if len(args) == 1 and list(args.keys())[0] == "query":
+                            result = str(tool_registry[name].invoke(args["query"]))
+                        elif len(args) == 1 and list(args.keys())[0] == "table_name":
+                            result = str(tool_registry[name].invoke(args["table_name"]))
+                        else:
+                            result = str(tool_registry[name].invoke(args))
+                    except Exception as e:
+                        result = f"Error running {name}: {e}"
+
+                show_tool_execution(name, args, result)
+
+                # Log step details
+                step_log.append({
+                    "iteration": step,
+                    "action": name,
+                    "input": str(args),
+                    "result_preview": result,
+                    "time": time.time() - iter_start
+                })
+
+                # Append the ToolMessage response containing the execution result back to the model history
+                messages.append(ToolMessage(content=result, tool_call_id=call_id))
+
+        else:
+            # No tools requested: This is the final text answer
+            final_answer = response.content
             iter_time = time.time() - iter_start
             step_log.append({
                 "iteration": step,
                 "action": "Final Answer",
                 "input": "--",
-                "result_preview": parsed["final_answer"],
-                "time": iter_time,
+                "result_preview": final_answer,
+                "time": iter_time
             })
-            show_decision(True, "")
-            show_final_answer(parsed["final_answer"])
+
+            show_final_answer(final_answer)
             show_recap(step_log, time.time() - start_time)
+
             if return_steps:
-                return {"final_answer": parsed["final_answer"], "steps": step_log}
-            return parsed["final_answer"]
-
-        action = parsed["action"]
-        action_input = parsed["action_input"]
-
-        if action not in tool_registry:
-            observation = f"Error: unknown tool '{action}'. Available tools: {tool_names}"
-            show_tool_execution(action, action_input, observation)
-        else:
-            try:
-                observation = str(tool_registry[action].invoke(action_input))
-            except Exception as e:
-                observation = f"Error running {action}: {e}"
-            show_tool_execution(action, action_input, observation)
-
-        iter_time = time.time() - iter_start
-        step_log.append({
-            "iteration": step,
-            "action": action,
-            "input": action_input,
-            "result_preview": observation,
-            "time": iter_time,
-        })
-
-        show_decision(False, "Need more information or need to run SQL", step + 1)
-
-        # Grow the scratchpad with what the model said + the tool result
-        scratchpad += text + f"\nObservation: {observation}\n"
+                return {"final_answer": final_answer, "steps": step_log}
+            return final_answer
 
     console.print(
         Panel(
-            f"[bold red]Agent did not reach a final answer in {max_iters} iterations.[/bold red]\n"
-            "The agent may be stuck in a loop. Try rephrasing your question.",
+            f"[bold red]Agent did not reach a final answer in {max_iters} iterations.[/bold red]",
             title="[bold red]MAX ITERATIONS REACHED[/bold red]",
-            border_style="red",
+            border_style="red"
         )
     )
     show_recap(step_log, time.time() - start_time)
@@ -739,7 +536,7 @@ def main():
             "  8. Show me departments where the average salary is above 100000.\n",
             title="[bold cyan]Example Questions[/bold cyan]",
             border_style="cyan",
-            padding=(0, 2),
+            padding=(0, 2)
         )
     )
 

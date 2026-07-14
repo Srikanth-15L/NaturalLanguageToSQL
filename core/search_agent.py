@@ -1,15 +1,14 @@
 """
 ReAct Agent Demo -- Built from Scratch with LangChain
 =====================================================
-A hand-rolled ReAct (Reason + Act) loop that shows every step of
-the Thought -> Action -> Observation cycle in the terminal.
+A message-based agent loop that shows every step of the
+Thought -> Action -> Observation cycle in the terminal.
 
-No AgentExecutor, no LangGraph -- just the raw loop, a prompt string,
-regex parsing, and a plain dict of tools.
+Uses OpenAI's native Tool-Calling capabilities.
 
 Usage:
     python core/search_agent.py
-    python core/search_agent.py --verbose   # shows the full prompt on each iteration
+    python core/search_agent.py --verbose   # shows the full message history each iteration
 
 Requirements:
     uv pip install langchain langchain-openai langchain-core python-dotenv rich requests
@@ -25,6 +24,8 @@ import requests
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -40,7 +41,7 @@ parser = argparse.ArgumentParser(description="ReAct Agent Demo")
 parser.add_argument(
     "--verbose", "-v",
     action="store_true",
-    help="Show the full prompt sent to the LLM each iteration",
+    help="Show the full message payload sent to the LLM each iteration",
 )
 args = parser.parse_args()
 VERBOSE = args.verbose
@@ -61,12 +62,6 @@ if not os.getenv("OPENAI_API_KEY"):
 
 # -------------------------------------------------------------------
 # Tools
-# -------------------------------------------------------------------
-# Each tool is a plain Python function wrapped with @tool from langchain_core.
-# The docstring is what the LLM sees in the prompt -- keep it clear and specific.
-#
-# If a real API key is set the tool hits the actual API; otherwise it returns
-# plausible fake data so the demo works out of the box.
 # -------------------------------------------------------------------
 
 @tool
@@ -162,81 +157,25 @@ def wikipedia_lookup(topic: str) -> str:
 tools = [web_search, calculator, get_weather, wikipedia_lookup]
 tool_registry = {t.name: t for t in tools}
 
-tools_text = "\n".join(f"{t.name}: {t.description}" for t in tools)
-tool_names = ", ".join(t.name for t in tools)
-
 
 # -------------------------------------------------------------------
-# ReAct prompt template
-# -------------------------------------------------------------------
-# Based on the Harrison Chase / hwchase17 ReAct prompt.
-# Four placeholders: {tools}, {tool_names}, {input}, {scratchpad}
-#
-# The model writes Thought -> Action -> Action Input, then we inject
-# the Observation (tool result) and send the whole thing back.
-# The loop ends when the model writes "Final Answer".
+# System Prompt & LLM Setup
 # -------------------------------------------------------------------
 
-REACT_PROMPT = """Answer the following questions as best you can. You have access to the following tools:
-
-{tools}
-
-IMPORTANT RULES:
+SYSTEM_PROMPT = """You are a helpful assistant. Answer the user's questions as best you can.
+You have access to tools to gather information. Follow these rules:
 - ALWAYS use tools to gather information. NEVER answer from memory alone.
 - If the question involves ANY factual data (populations, dates, statistics, rankings), use web_search FIRST.
 - If the question involves weather or temperature, use get_weather.
 - If the question involves math, use calculator. NEVER compute in your head.
-- Use multiple tools if needed. Each tool call gives you one piece of the puzzle.
-- Only write "Final Answer" when you have ALL the information from tools.
+- Only output the final answer when you have ALL required information.
+"""
 
-Use the following format:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
-
-Begin!
-
-Question: {input}
-{scratchpad}"""
-
-
-def parse_react_output(text: str) -> dict:
-    """
-    Parse the LLM's ReAct-formatted output.
-
-    Returns:
-        {"final_answer": "..."}  if the model is done, OR
-        {"action": "tool_name", "action_input": "the input"}  for tool calls.
-
-    Raises:
-        ValueError if the text can't be parsed into either format.
-    """
-    final_match = re.search(r"Final Answer:\s*(.*)", text, re.DOTALL)
-    if final_match:
-        return {"final_answer": final_match.group(1).strip()}
-
-    action_match = re.search(r"Action:\s*(.*?)(?:\n|$)", text)
-    input_match = re.search(r"Action Input:\s*(.*)", text, re.DOTALL)
-    if action_match and input_match:
-        return {
-            "action": action_match.group(1).strip(),
-            "action_input": input_match.group(1).strip(),
-        }
-
-    raise ValueError(f"Could not parse LLM output into Action or Final Answer:\n{text}")
-
-
-# Stop sequences keep the LLM from writing its own fake Observations
 llm = ChatOpenAI(
     model="gpt-4o-mini",
     temperature=0,
-).bind(stop=["\nObservation:", "Observation:"])
+)
+llm_with_tools = llm.bind_tools(tools)
 
 
 # -------------------------------------------------------------------
@@ -245,9 +184,9 @@ llm = ChatOpenAI(
 
 def show_banner():
     banner_text = Text()
-    banner_text.append("\n  ReAct Agent Demo\n", style="bold magenta")
+    banner_text.append("\n  ReAct Agent Demo (Tool-Calling)\n", style="bold magenta")
     banner_text.append("  Reason + Act = Agent\n", style="dim magenta")
-    banner_text.append("  Built from scratch with LangChain\n", style="dim")
+    banner_text.append("  Built using native LLM Tool-Calling bindings\n", style="dim")
 
     console.print(Panel(banner_text, border_style="bright_magenta", padding=(1, 2)))
 
@@ -268,18 +207,11 @@ def show_banner():
     console.print()
 
     if VERBOSE:
-        console.print("[dim italic]  --verbose mode: full prompts will be shown[/dim italic]\n")
+        console.print("[dim italic]  --verbose mode: full message payloads will be shown[/dim italic]\n")
 
 
 def show_question(question: str):
-    console.print(
-        Panel(
-            f"[bold white]{question}[/bold white]",
-            title="[bold blue]Your Question[/bold blue]",
-            border_style="blue",
-            padding=(0, 2),
-        )
-    )
+    console.print(Panel(f"[bold white]{question}[/bold white]", title="[bold blue]Your Question[/bold blue]", border_style="blue", padding=(0, 2)))
     console.print()
 
 
@@ -288,63 +220,29 @@ def show_iteration_header(n: int):
     console.print()
 
 
-def show_scratchpad(scratchpad: str):
-    content = scratchpad.strip() if scratchpad.strip() else "(empty -- first iteration)"
-    console.print(
-        Panel(
-            content,
-            title="[bold blue]Scratchpad (agent memory)[/bold blue]",
-            border_style="blue",
-            padding=(0, 1),
-        )
-    )
+def show_message_payload(messages: list):
+    payload = ""
+    for msg in messages:
+        role = msg.__class__.__name__.replace("Message", "")
+        content = msg.content
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            content += f"\n[Tool Calls: {msg.tool_calls}]"
+        payload += f"[bold cyan]{role}:[/bold cyan] {content}\n---\n"
+    console.print(Panel(payload.strip(), title="[bold blue]Message History (Agent Context)[/bold blue]", border_style="blue", padding=(0, 1)))
     console.print()
 
 
-def show_full_prompt(prompt: str):
-    console.print(
-        Panel(
-            Syntax(prompt, "text", theme="monokai", word_wrap=True),
-            title="[bold blue]FULL PROMPT SENT TO LLM[/bold blue]",
-            border_style="bright_blue",
-            padding=(0, 1),
-        )
-    )
+def show_llm_response(msg: AIMessage):
+    content = msg.content if msg.content else "(No text output)"
+    if msg.tool_calls:
+        content += f"\n\n[bold magenta]Tool Calls requested:[/bold magenta]\n"
+        for call in msg.tool_calls:
+            content += f" - {call['name']}({call['args']})\n"
+    console.print(Panel(content.strip(), title="[bold magenta]LLM Output[/bold magenta]", border_style="bright_magenta", padding=(0, 1)))
     console.print()
 
 
-def show_llm_output(text: str):
-    console.print(
-        Panel(
-            Syntax(text, "text", theme="monokai", word_wrap=True),
-            title="[bold magenta]LLM Output[/bold magenta]",
-            border_style="bright_magenta",
-            padding=(0, 1),
-        )
-    )
-    console.print()
-
-
-def show_parsed(parsed: dict):
-    if "final_answer" in parsed:
-        content = f"[bold green]Final Answer:[/bold green] {parsed['final_answer']}"
-    else:
-        content = (
-            f"[bold cyan]Action:[/bold cyan]       {parsed['action']}\n"
-            f"[bold cyan]Action Input:[/bold cyan] {parsed['action_input']}"
-        )
-    console.print(
-        Panel(
-            content,
-            title="[bold yellow]Parsed[/bold yellow]",
-            border_style="yellow",
-            padding=(0, 1),
-        )
-    )
-    console.print()
-
-
-def show_tool_execution(tool_name: str, tool_input: str, result: str):
+def show_tool_execution(tool_name: str, tool_input: dict, result: str):
     icons = {
         "web_search":       "[bold blue]SEARCH[/bold blue]",
         "calculator":       "[bold green]CALC[/bold green]",
@@ -355,8 +253,7 @@ def show_tool_execution(tool_name: str, tool_input: str, result: str):
 
     console.print(
         Panel(
-            f"{icon} [bold]{tool_name}[/bold]([cyan]{tool_input}[/cyan])\n\n"
-            f"[green]Result:[/green] {result}",
+            f"{icon} [bold]{tool_name}[/bold]({tool_input})\n\n[green]Result:[/green] {result}",
             title="[bold green]Tool Execution[/bold green]",
             border_style="green",
             padding=(0, 1),
@@ -365,43 +262,12 @@ def show_tool_execution(tool_name: str, tool_input: str, result: str):
     console.print()
 
 
-def show_decision(can_answer: bool, reason: str, next_iter: int = None):
-    if can_answer:
-        status = "[bold green]YES -- delivering final answer[/bold green]"
-        border = "green"
-    else:
-        status = f"[bold red]NO[/bold red] -- {reason}"
-        border = "red"
-
-    content = f"Can I answer the question?  {status}"
-    if not can_answer and next_iter:
-        content += f"\n\n[bold cyan]>> LOOP BACK to Iteration {next_iter}[/bold cyan]"
-
-    console.print(
-        Panel(
-            content,
-            title="[bold yellow]Decision[/bold yellow]",
-            border_style=border,
-            padding=(0, 1),
-        )
-    )
-    console.print()
-
-
 def show_final_answer(answer: str):
-    console.print(
-        Panel(
-            f"[bold white]{answer}[/bold white]",
-            title="[bold green]FINAL ANSWER[/bold green]",
-            border_style="bright_green",
-            padding=(1, 2),
-        )
-    )
+    console.print(Panel(f"[bold white]{answer}[/bold white]", title="[bold green]FINAL ANSWER[/bold green]", border_style="bright_green", padding=(1, 2)))
     console.print()
 
 
 def show_recap(steps: list, total_time: float):
-    """Show a summary table of every iteration after the agent finishes."""
     table = Table(
         title="Recap -- Agent Execution Summary",
         border_style="magenta",
@@ -422,7 +288,7 @@ def show_recap(steps: list, total_time: float):
         table.add_row(
             str(s["iteration"]),
             s.get("action", "Final Answer"),
-            s.get("input", "--"),
+            str(s.get("input", "--")),
             result_preview,
             f"{s['time']:.1f}s",
         )
@@ -433,37 +299,24 @@ def show_recap(steps: list, total_time: float):
     console.print()
 
 
-def show_parse_error(text: str, error: str):
-    console.print(
-        Panel(
-            f"[bold red]Parse Error:[/bold red] {error}\n\n"
-            f"[dim]Raw LLM output:[/dim]\n{text}",
-            title="[bold red]ERROR[/bold red]",
-            border_style="red",
-            padding=(0, 1),
-        )
-    )
-    console.print()
-
-
 # -------------------------------------------------------------------
-# The agent loop
+# The agent loop (Tool-Calling Implementation)
 # -------------------------------------------------------------------
 
 def run_react_agent(question: str, max_iters: int = 10) -> str | None:
     """
-    Run the ReAct agent on a question.
+    Run the ReAct agent on a question using native tool-calling.
 
     Args:
         question: The user's natural language question.
-        max_iters: Maximum Thought/Action/Observation cycles before giving up.
-
-    Returns:
-        The final answer string, or None if the agent ran out of iterations.
+        max_iters: Maximum number of iterations before giving up.
     """
     show_question(question)
 
-    scratchpad = ""
+    messages = [
+        SystemMessage(content=SYSTEM_PROMPT),
+        HumanMessage(content=question)
+    ]
     step_log = []
     start_time = time.time()
 
@@ -472,104 +325,68 @@ def run_react_agent(question: str, max_iters: int = 10) -> str | None:
         show_iteration_header(step)
 
         if VERBOSE:
-            full_prompt = REACT_PROMPT.format(
-                tools=tools_text,
-                tool_names=tool_names,
-                input=question,
-                scratchpad=scratchpad,
-            )
-            show_full_prompt(full_prompt)
-        else:
-            show_scratchpad(scratchpad)
-
-        prompt = REACT_PROMPT.format(
-            tools=tools_text,
-            tool_names=tool_names,
-            input=question,
-            scratchpad=scratchpad,
-        )
+            show_message_payload(messages)
 
         try:
-            ai_response = llm.invoke(prompt)
-            text = ai_response.content
+            response = llm_with_tools.invoke(messages)
         except Exception as e:
-            console.print(
-                Panel(
-                    f"[bold red]LLM call failed:[/bold red] {e}",
-                    title="[bold red]ERROR[/bold red]",
-                    border_style="red",
-                )
-            )
+            console.print(Panel(f"[bold red]LLM call failed:[/bold red] {e}", title="[bold red]ERROR[/bold red]", border_style="red"))
             return None
 
-        show_llm_output(text)
+        show_llm_response(response)
 
-        try:
-            parsed = parse_react_output(text)
-        except ValueError as e:
-            show_parse_error(text, str(e))
-            # Give the model a nudge and let it try again
-            scratchpad += text + "\nObservation: Your output was not in the correct format. Please use the format: Thought/Action/Action Input or Thought/Final Answer.\n"
-            step_log.append({
-                "iteration": step,
-                "action": "PARSE ERROR",
-                "input": "--",
-                "result_preview": "Format error -- retrying",
-                "time": time.time() - iter_start,
-            })
-            show_decision(False, "Output could not be parsed -- retrying", step + 1)
-            continue
+        if response.tool_calls:
+            messages.append(response)
 
-        show_parsed(parsed)
+            for tool_call in response.tool_calls:
+                name = tool_call["name"]
+                args = tool_call["args"]
+                call_id = tool_call["id"]
 
-        if "final_answer" in parsed:
+                if name not in tool_registry:
+                    result = f"Error: unknown tool '{name}'."
+                else:
+                    try:
+                        # Extract first arg if tool expects a single positional parameter
+                        if len(args) == 1:
+                            val = list(args.values())[0]
+                            result = str(tool_registry[name].invoke(val))
+                        else:
+                            result = str(tool_registry[name].invoke(args))
+                    except Exception as e:
+                        result = f"Error running {name}: {e}"
+
+                show_tool_execution(name, args, result)
+
+                step_log.append({
+                    "iteration": step,
+                    "action": name,
+                    "input": str(args),
+                    "result_preview": result,
+                    "time": time.time() - iter_start
+                })
+
+                messages.append(ToolMessage(content=result, tool_call_id=call_id))
+        else:
+            final_answer = response.content
             iter_time = time.time() - iter_start
             step_log.append({
                 "iteration": step,
                 "action": "Final Answer",
                 "input": "--",
-                "result_preview": parsed["final_answer"],
-                "time": iter_time,
+                "result_preview": final_answer,
+                "time": iter_time
             })
-            show_decision(True, "")
-            show_final_answer(parsed["final_answer"])
+
+            show_final_answer(final_answer)
             show_recap(step_log, time.time() - start_time)
-            return parsed["final_answer"]
-
-        action = parsed["action"]
-        action_input = parsed["action_input"]
-
-        if action not in tool_registry:
-            observation = f"Error: unknown tool '{action}'. Available tools: {tool_names}"
-            show_tool_execution(action, action_input, observation)
-        else:
-            try:
-                observation = str(tool_registry[action].invoke(action_input))
-            except Exception as e:
-                observation = f"Error running {action}: {e}"
-            show_tool_execution(action, action_input, observation)
-
-        iter_time = time.time() - iter_start
-        step_log.append({
-            "iteration": step,
-            "action": action,
-            "input": action_input,
-            "result_preview": observation,
-            "time": iter_time,
-        })
-
-        show_decision(False, "Need more information or computation", step + 1)
-
-        # The scratchpad is the agent's memory -- it grows every iteration
-        scratchpad += text + f"\nObservation: {observation}\n"
+            return final_answer
 
     console.print(
         Panel(
-            f"[bold red]Agent did not reach a final answer in {max_iters} iterations.[/bold red]\n"
-            "This is a common failure mode. In production, you set a budget\n"
-            "(max iterations, token cost, wall time) and bail out gracefully.",
+            f"[bold red]Agent did not reach a final answer in {max_iters} iterations.[/bold red]",
             title="[bold red]MAX ITERATIONS REACHED[/bold red]",
-            border_style="red",
+            border_style="red"
         )
     )
     show_recap(step_log, time.time() - start_time)
@@ -589,7 +406,7 @@ def main():
             "  5. What is (365 * 24 * 60) and what does that number represent?\n",
             title="[bold cyan]Example Questions[/bold cyan]",
             border_style="cyan",
-            padding=(0, 2),
+            padding=(0, 2)
         )
     )
 

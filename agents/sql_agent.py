@@ -1,23 +1,20 @@
 """
 Natural Language to SQL Agent
 ==============================
-An agent that converts English questions into SQL queries,
-executes them, and returns human-readable answers.
+Converts plain English questions into SQL queries, runs them against
+a local SQLite database, and returns a readable answer.
 
-Uses the same ReAct pattern as agent_react_demo.py but with
-SQL-specific tools and an in-memory SQLite database with sample data.
+Built on top of the same ReAct (Reason + Act) loop as search_agent.py,
+but all the tools here are SQL-specific.
 
-Run:
-    python agent_nl_sql_demo.py
-    python agent_nl_sql_demo.py --verbose   # shows the FULL prompt sent to the LLM
+Usage:
+    python sql_agent.py
+    python sql_agent.py --verbose   # prints the full prompt each iteration
 
 Requirements:
-    uv pip install langchain langchain-openai langchain-core python-dotenv rich
+    uv pip install langchain langchain-groq langchain-core python-dotenv rich
 """
 
-# =============================================================================
-# IMPORTS
-# =============================================================================
 import os
 import re
 import sys
@@ -26,11 +23,8 @@ import sqlite3
 import argparse
 
 from dotenv import load_dotenv
-
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
-
-# Rich imports for beautiful terminal output
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -39,28 +33,24 @@ from rich.text import Text
 from rich.rule import Rule
 from rich import print as rprint
 
-# =============================================================================
-# SETUP
-# =============================================================================
-
 load_dotenv()
 
 console = Console()
 
-# Argument parsing -- only when run directly (not when imported by FastAPI)
+# Only parse CLI args when the script is run directly.
+# When api.py imports this module, we skip argparse entirely.
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Natural Language to SQL Agent")
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
-        help="Show the FULL prompt sent to the LLM (not just the scratchpad)",
+        help="Print the full prompt sent to the LLM on every iteration",
     )
     args = parser.parse_args()
     VERBOSE = args.verbose
 else:
     VERBOSE = False
 
-# API key check -- only exit when run as a script, not when imported
 if not os.getenv("GROQ_API_KEY"):
     if __name__ == "__main__":
         console.print(
@@ -76,27 +66,24 @@ if not os.getenv("GROQ_API_KEY"):
         sys.exit(1)
 
 
-# =============================================================================
-# DATABASE SETUP (SQLite in-memory)
-# =============================================================================
-# We create three related tables with realistic sample data:
-#   - departments: organizational units with budgets
-#   - employees: people in those departments with salaries
-#   - projects: work items linked to departments with status and deadlines
+# -------------------------------------------------------------------
+# Database setup
+# -------------------------------------------------------------------
+# We use a file-based SQLite DB (demo_company.db) with three tables:
+#   departments, employees, projects
 #
-# This is all in-memory -- nothing is written to disk. The database exists
-# only for the lifetime of this script.
-# =============================================================================
+# The tables are always dropped and recreated on startup so the demo
+# starts from a clean, predictable state.
+# -------------------------------------------------------------------
 
 def create_database() -> sqlite3.Connection:
-    """Create and populate the in-memory SQLite database."""
+    """Create and seed the demo SQLite database, return the connection."""
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "demo_company.db")
     print(db_path)
     conn = sqlite3.connect(db_path, check_same_thread=False)
     cursor = conn.cursor()
 
-    # --- Create tables ---
-
+    # Drop and recreate so we always start fresh
     cursor.execute("DROP TABLE IF EXISTS departments")
     cursor.execute("DROP TABLE IF EXISTS employees")
     cursor.execute("DROP TABLE IF EXISTS projects")
@@ -131,8 +118,6 @@ def create_database() -> sqlite3.Connection:
         )
     """)
 
-    # --- Populate departments ---
-
     departments = [
         (1, "Engineering",  1500000, "Alice Chen"),
         (2, "Marketing",     800000, "Bob Martinez"),
@@ -141,8 +126,6 @@ def create_database() -> sqlite3.Connection:
         (5, "Finance",       700000, "Eve Johnson"),
     ]
     cursor.executemany("INSERT INTO departments VALUES (?, ?, ?, ?)", departments)
-
-    # --- Populate employees ---
 
     employees = [
         (1,  "Alice Chen",       "Engineering",  145000, "2019-03-15"),
@@ -156,28 +139,26 @@ def create_database() -> sqlite3.Connection:
         (9,  "Carol Williams",   "Sales",        110000, "2019-05-20"),
         (10, "Leo Brown",        "Sales",         95000, "2021-09-12"),
         (11, "Maria Garcia",     "Sales",         88000, "2024-01-15"),
-        (12, "David Kim",        "HR",            105000, "2020-02-14"),
-        (13, "Nina Patel",       "HR",             78000, "2023-06-01"),
-        (14, "Eve Johnson",      "Finance",       115000, "2019-08-22"),
-        (15, "Oscar Davis",      "Finance",        92000, "2022-11-30"),
+        (12, "David Kim",        "HR",           105000, "2020-02-14"),
+        (13, "Nina Patel",       "HR",            78000, "2023-06-01"),
+        (14, "Eve Johnson",      "Finance",      115000, "2019-08-22"),
+        (15, "Oscar Davis",      "Finance",       92000, "2022-11-30"),
     ]
     cursor.executemany("INSERT INTO employees VALUES (?, ?, ?, ?, ?)", employees)
 
-    # --- Populate projects ---
-
     projects = [
-        (1,  "Cloud Migration",       1, "In Progress", "2025-06-30"),
-        (2,  "Mobile App v2",          1, "In Progress", "2025-04-15"),
-        (3,  "API Redesign",           1, "Completed",   "2024-12-01"),
-        (4,  "Brand Refresh",          2, "In Progress", "2025-03-31"),
-        (5,  "Social Media Campaign",  2, "Completed",   "2024-11-15"),
-        (6,  "Q1 Sales Push",          3, "Completed",   "2025-03-31"),
-        (7,  "Enterprise Accounts",    3, "In Progress", "2025-08-30"),
-        (8,  "Partner Program",        3, "Behind Schedule", "2025-02-28"),
-        (9,  "Benefits Overhaul",      4, "In Progress", "2025-05-15"),
-        (10, "Hiring Pipeline",        4, "Behind Schedule", "2025-01-31"),
-        (11, "Budget Forecast 2026",   5, "In Progress", "2025-09-30"),
-        (12, "Audit Preparation",      5, "Behind Schedule", "2025-03-15"),
+        (1,  "Cloud Migration",       1, "In Progress",    "2025-06-30"),
+        (2,  "Mobile App v2",          1, "In Progress",    "2025-04-15"),
+        (3,  "API Redesign",           1, "Completed",      "2024-12-01"),
+        (4,  "Brand Refresh",          2, "In Progress",    "2025-03-31"),
+        (5,  "Social Media Campaign",  2, "Completed",      "2024-11-15"),
+        (6,  "Q1 Sales Push",          3, "Completed",      "2025-03-31"),
+        (7,  "Enterprise Accounts",    3, "In Progress",    "2025-08-30"),
+        (8,  "Partner Program",        3, "Behind Schedule","2025-02-28"),
+        (9,  "Benefits Overhaul",      4, "In Progress",    "2025-05-15"),
+        (10, "Hiring Pipeline",        4, "Behind Schedule","2025-01-31"),
+        (11, "Budget Forecast 2026",   5, "In Progress",    "2025-09-30"),
+        (12, "Audit Preparation",      5, "Behind Schedule","2025-03-15"),
     ]
     cursor.executemany("INSERT INTO projects VALUES (?, ?, ?, ?, ?)", projects)
 
@@ -185,20 +166,13 @@ def create_database() -> sqlite3.Connection:
     return conn
 
 
-# Create the global database connection
+# Global DB connection shared by all tools and the FastAPI routes
 DB_CONN = create_database()
 
 
-# =============================================================================
-# TOOL DEFINITIONS
-# =============================================================================
-# Four tools that give the agent everything it needs to explore a database
-# and answer questions about it:
-#   1. list_tables -- discover what tables exist
-#   2. get_schema  -- learn the columns and types of a table
-#   3. run_sql     -- execute a SELECT query and get results
-#   4. validate_sql -- check if SQL syntax is valid before running
-# =============================================================================
+# -------------------------------------------------------------------
+# Tools
+# -------------------------------------------------------------------
 
 @tool
 def list_tables() -> str:
@@ -220,7 +194,6 @@ def get_schema(table_name: str) -> str:
         if not columns:
             return f"Error: table '{table_name}' not found. Use list_tables to see available tables."
 
-        # Format: column_name (type) [PRIMARY KEY if applicable]
         schema_lines = []
         for col in columns:
             cid, name, dtype, notnull, default, pk = col
@@ -231,7 +204,6 @@ def get_schema(table_name: str) -> str:
                 parts.append("NOT NULL")
             schema_lines.append(" ".join(parts))
 
-        # Also get row count for context
         cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         count = cursor.fetchone()[0]
 
@@ -245,7 +217,7 @@ def run_sql(query: str) -> str:
     """Execute a SQL query against the database and return the results. Input is a valid SQL SELECT query. Only SELECT queries are allowed for safety. Always get the schema first so you use correct column names. Do NOT wrap the query in quotes."""
     query = query.strip().strip("'\"").rstrip(";").strip()
 
-    # Safety: only allow SELECT and PRAGMA queries
+    # Only allow read-only queries
     if not query.upper().startswith(("SELECT", "PRAGMA", "WITH")):
         return "Error: only SELECT queries are allowed. Do not use INSERT, UPDATE, DELETE, DROP, etc."
 
@@ -258,12 +230,9 @@ def run_sql(query: str) -> str:
         if not rows:
             return f"Query returned 0 rows.\nColumns: {', '.join(columns)}"
 
-        # Format as a readable table
-        # Header
+        # Simple pipe-delimited table, capped at 50 rows
         result_lines = [" | ".join(str(c) for c in columns)]
         result_lines.append("-" * len(result_lines[0]))
-
-        # Rows (limit to 50 for readability)
         for row in rows[:50]:
             result_lines.append(" | ".join(str(v) for v in row))
 
@@ -285,16 +254,12 @@ def validate_sql(query: str) -> str:
 
     cursor = DB_CONN.cursor()
     try:
-        # EXPLAIN will parse but not execute
+        # EXPLAIN parses the query without actually running it
         cursor.execute(f"EXPLAIN {query}")
         return "Valid: the SQL syntax is correct and all referenced tables/columns exist."
     except Exception as e:
         return f"Invalid: {e}"
 
-
-# =============================================================================
-# TOOL REGISTRY
-# =============================================================================
 
 tools = [list_tables, get_schema, run_sql, validate_sql]
 tool_registry = {t.name: t for t in tools}
@@ -303,17 +268,13 @@ tools_text = "\n".join(f"{t.name}: {t.description}" for t in tools)
 tool_names = ", ".join(t.name for t in tools)
 
 
-# =============================================================================
-# REACT PROMPT TEMPLATE (customized for SQL)
-# =============================================================================
-# Same ReAct structure as the general-purpose agent, but the system message
-# is tuned for the SQL use case. The model is instructed to:
-#   1. Start by listing tables
-#   2. Get the schema of relevant tables
-#   3. Write and validate SQL
-#   4. Run the SQL
-#   5. Format the results as a human-readable answer
-# =============================================================================
+# -------------------------------------------------------------------
+# ReAct prompt (tuned for SQL workflows)
+# -------------------------------------------------------------------
+# The LLM is instructed to always follow the same order:
+#   list_tables -> get_schema -> validate_sql -> run_sql -> Final Answer
+# This prevents it from guessing column names or skipping validation.
+# -------------------------------------------------------------------
 
 REACT_PROMPT = """You are a helpful SQL assistant. You convert natural language questions into SQL queries, execute them, and return clear answers.
 
@@ -350,17 +311,15 @@ Question: {input}
 {scratchpad}"""
 
 
-# =============================================================================
-# OUTPUT PARSER (same as the general agent)
-# =============================================================================
-
 def parse_react_output(text: str) -> dict:
     """
-    Parse ReAct-formatted LLM output.
+    Parse the LLM's ReAct-formatted output.
 
-    Returns:
-        {"final_answer": "..."} if the model wrote a Final Answer, OR
-        {"action": "tool_name", "action_input": "..."} for tool calls.
+    Returns either:
+      {"final_answer": "..."}  -- model is done
+      {"action": "...", "action_input": "..."}  -- model wants to call a tool
+
+    Raises ValueError if neither pattern is found.
     """
     final_match = re.search(r"Final Answer:\s*(.*)", text, re.DOTALL)
     if final_match:
@@ -377,25 +336,18 @@ def parse_react_output(text: str) -> dict:
     raise ValueError(f"Could not parse LLM output:\n{text}")
 
 
-# =============================================================================
-# LLM SETUP
-# =============================================================================
-
+# Stop sequences prevent the LLM from writing fake Observations
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
     temperature=0,
 ).bind(stop=["\nObservation:", "Observation:"])
 
 
-# =============================================================================
-# RICH DISPLAY HELPERS
-# =============================================================================
-# All the beautiful terminal output lives here. Same pattern as
-# agent_react_demo.py but themed for the SQL use case.
-# =============================================================================
+# -------------------------------------------------------------------
+# Terminal display helpers (Rich)
+# -------------------------------------------------------------------
 
 def show_banner():
-    """Display the startup banner, tool table, and database info."""
     banner_text = Text()
     banner_text.append("\n  Natural Language to SQL Agent\n", style="bold bright_green")
     banner_text.append("  Ask questions in English, get SQL answers\n", style="dim green")
@@ -403,7 +355,6 @@ def show_banner():
 
     console.print(Panel(banner_text, border_style="bright_green", padding=(1, 2)))
 
-    # Tool table
     tool_table = Table(
         title="Available Tools",
         border_style="blue",
@@ -420,7 +371,6 @@ def show_banner():
     console.print(tool_table)
     console.print()
 
-    # Show database contents summary
     show_database_summary()
 
     if VERBOSE:
@@ -428,7 +378,6 @@ def show_banner():
 
 
 def show_database_summary():
-    """Display a summary of the in-memory database tables and sample data."""
     cursor = DB_CONN.cursor()
 
     db_table = Table(
@@ -454,7 +403,6 @@ def show_database_summary():
 
 
 def show_question(question: str):
-    """Display the user's question."""
     console.print(
         Panel(
             f"[bold white]{question}[/bold white]",
@@ -467,13 +415,11 @@ def show_question(question: str):
 
 
 def show_iteration_header(n: int):
-    """Display the iteration number."""
     console.print(Rule(f"[bold bright_yellow] Iteration {n} [/bold bright_yellow]", style="yellow"))
     console.print()
 
 
 def show_scratchpad(scratchpad: str):
-    """Display the current scratchpad."""
     content = scratchpad.strip() if scratchpad.strip() else "(empty -- first iteration)"
     console.print(
         Panel(
@@ -487,7 +433,6 @@ def show_scratchpad(scratchpad: str):
 
 
 def show_full_prompt(prompt: str):
-    """Display the full prompt (verbose mode only)."""
     console.print(
         Panel(
             Syntax(prompt, "text", theme="monokai", word_wrap=True),
@@ -500,7 +445,6 @@ def show_full_prompt(prompt: str):
 
 
 def show_llm_output(text: str):
-    """Display the raw LLM output."""
     console.print(
         Panel(
             Syntax(text, "text", theme="monokai", word_wrap=True),
@@ -513,7 +457,6 @@ def show_llm_output(text: str):
 
 
 def show_parsed(parsed: dict):
-    """Display parsed action or final answer."""
     if "final_answer" in parsed:
         content = f"[bold green]Final Answer:[/bold green] {parsed['final_answer']}"
     else:
@@ -533,7 +476,6 @@ def show_parsed(parsed: dict):
 
 
 def show_tool_execution(tool_name: str, tool_input: str, result: str):
-    """Display tool call and result."""
     icons = {
         "list_tables":  "[bold yellow]TABLES[/bold yellow]",
         "get_schema":   "[bold blue]SCHEMA[/bold blue]",
@@ -542,14 +484,9 @@ def show_tool_execution(tool_name: str, tool_input: str, result: str):
     }
     icon = icons.get(tool_name, "[bold white]TOOL[/bold white]")
 
-    # Syntax-highlight SQL inputs
-    input_display = tool_input
-    if tool_name in ("run_sql", "validate_sql") and tool_input.strip():
-        input_display = tool_input
-
     console.print(
         Panel(
-            f"{icon} [bold]{tool_name}[/bold]([cyan]{input_display}[/cyan])\n\n"
+            f"{icon} [bold]{tool_name}[/bold]([cyan]{tool_input}[/cyan])\n\n"
             f"[green]Result:[/green]\n{result}",
             title="[bold green]Tool Execution[/bold green]",
             border_style="green",
@@ -560,7 +497,6 @@ def show_tool_execution(tool_name: str, tool_input: str, result: str):
 
 
 def show_decision(can_answer: bool, reason: str, next_iter: int = None):
-    """Display the agent's decision."""
     if can_answer:
         status = "[bold green]YES -- delivering final answer[/bold green]"
         border = "green"
@@ -584,7 +520,6 @@ def show_decision(can_answer: bool, reason: str, next_iter: int = None):
 
 
 def show_final_answer(answer: str):
-    """Display the final answer."""
     console.print(
         Panel(
             f"[bold white]{answer}[/bold white]",
@@ -597,7 +532,6 @@ def show_final_answer(answer: str):
 
 
 def show_recap(steps: list, total_time: float):
-    """Display a recap table of all iterations."""
     table = Table(
         title="Recap -- Agent Execution Summary",
         border_style="magenta",
@@ -633,7 +567,6 @@ def show_recap(steps: list, total_time: float):
 
 
 def show_parse_error(text: str, error: str):
-    """Display a parse error."""
     console.print(
         Panel(
             f"[bold red]Parse Error:[/bold red] {error}\n\n"
@@ -646,30 +579,31 @@ def show_parse_error(text: str, error: str):
     console.print()
 
 
-# =============================================================================
-# THE AGENT LOOP
-# =============================================================================
-# Same core loop as agent_react_demo.py:
-#   1. Build prompt from template + scratchpad
-#   2. Call LLM (stops at "Observation:")
-#   3. Parse response
-#   4. If Final Answer: done. If Action: run tool, append to scratchpad, loop.
+# -------------------------------------------------------------------
+# The agent loop
+# -------------------------------------------------------------------
+# Each iteration:
+#   1. Build the prompt (template + growing scratchpad)
+#   2. Call the LLM (stops before writing "Observation:")
+#   3. Parse: Final Answer -> done; Action -> run tool, append, loop
 #
-# The SQL agent typically follows this workflow:
-#   list_tables -> get_schema -> (optional: validate_sql) -> run_sql -> Final Answer
-# =============================================================================
+# The typical SQL workflow looks like:
+#   list_tables -> get_schema -> validate_sql -> run_sql -> Final Answer
+# -------------------------------------------------------------------
 
 def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = False) -> str | dict | None:
     """
-    Run the SQL ReAct agent on a natural language question.
+    Run the ReAct loop on a natural language database question.
 
     Args:
-        question: A natural language question about the database.
-        max_iters: Maximum iterations before giving up.
-        return_steps: If True, returns a dict with 'final_answer' and 'steps'.
+        question: Plain English question about the database.
+        max_iters: Safety cap on the number of Thought/Action cycles.
+        return_steps: When True, returns a dict with both the answer and
+                      the step log (used by the API endpoint).
 
     Returns:
-        The final answer string, a dict if return_steps is True, or None if the agent failed.
+        The final answer string, a {"final_answer": ..., "steps": [...]} dict
+        if return_steps is True, or None if the agent ran out of iterations.
     """
     show_question(question)
 
@@ -681,7 +615,7 @@ def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = Fal
         iter_start = time.time()
         show_iteration_header(step)
 
-        # --- 1. Show scratchpad or full prompt ---
+        # Verbose mode shows the entire prompt; default shows just the scratchpad
         if VERBOSE:
             full_prompt = REACT_PROMPT.format(
                 tools=tools_text,
@@ -693,7 +627,6 @@ def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = Fal
         else:
             show_scratchpad(scratchpad)
 
-        # --- 2. Call the LLM ---
         prompt = REACT_PROMPT.format(
             tools=tools_text,
             tool_names=tool_names,
@@ -716,7 +649,6 @@ def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = Fal
 
         show_llm_output(text)
 
-        # --- 3. Parse ---
         try:
             parsed = parse_react_output(text)
         except ValueError as e:
@@ -734,7 +666,6 @@ def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = Fal
 
         show_parsed(parsed)
 
-        # --- 4a. Final Answer ---
         if "final_answer" in parsed:
             iter_time = time.time() - iter_start
             step_log.append({
@@ -751,7 +682,6 @@ def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = Fal
                 return {"final_answer": parsed["final_answer"], "steps": step_log}
             return parsed["final_answer"]
 
-        # --- 4b. Run the tool ---
         action = parsed["action"]
         action_input = parsed["action_input"]
 
@@ -774,13 +704,11 @@ def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = Fal
             "time": iter_time,
         })
 
-        # --- 5. Decision ---
         show_decision(False, "Need more information or need to run SQL", step + 1)
 
-        # --- 6. Append to scratchpad ---
+        # Grow the scratchpad with what the model said + the tool result
         scratchpad += text + f"\nObservation: {observation}\n"
 
-    # Max iterations reached
     console.print(
         Panel(
             f"[bold red]Agent did not reach a final answer in {max_iters} iterations.[/bold red]\n"
@@ -795,15 +723,9 @@ def run_react_agent(question: str, max_iters: int = 12, return_steps: bool = Fal
     return None
 
 
-# =============================================================================
-# INTERACTIVE CLI
-# =============================================================================
-
 def main():
-    """Interactive CLI for the NL-to-SQL Agent."""
     show_banner()
 
-    # Suggest example questions
     console.print(
         Panel(
             "[bold]Try these example questions:[/bold]\n\n"

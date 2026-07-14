@@ -5,11 +5,12 @@ import './index.css';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
+// Collapsible panel that shows the agent's reasoning steps after each answer.
 function ReasoningPanel({ steps }) {
   const [expanded, setExpanded] = useState(false);
-  
+
   if (!steps || steps.length === 0) return null;
-  
+
   return (
     <div className="reasoning-panel">
       <div className="reasoning-header" onClick={() => setExpanded(!expanded)}>
@@ -41,17 +42,17 @@ function App() {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    // Fetch schema on mount
+    // Load the DB schema for the sidebar on first render
     axios.get(`${API_BASE}/schema`)
       .then(res => setSchema(res.data))
-      .catch(err => console.error("Failed to fetch schema", err));
-      
-    // Initial welcome message
+      .catch(err => console.error('Failed to fetch schema', err));
+
     setMessages([
       { role: 'agent', content: 'Hello! I am your AI Data Assistant. Ask me questions about the database!' }
     ]);
   }, []);
 
+  // Keep the latest message in view as the conversation grows
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -67,14 +68,14 @@ function App() {
 
     try {
       const response = await axios.post(`${API_BASE}/chat`, { question: userMessage });
-      setMessages(prev => [...prev, { 
-        role: 'agent', 
+      setMessages(prev => [...prev, {
+        role: 'agent',
         content: response.data.final_answer,
-        steps: response.data.steps 
+        steps: response.data.steps,
       }]);
     } catch (error) {
       console.error(error);
-      setMessages(prev => [...prev, { role: 'agent', content: "Sorry, I encountered an error connecting to the backend API." }]);
+      setMessages(prev => [...prev, { role: 'agent', content: 'Sorry, I encountered an error connecting to the backend API.' }]);
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +83,7 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* Sidebar */}
+      {/* Sidebar -- schema browser */}
       <div className="sidebar">
         <div className="logo-area">
           <div className="logo-icon">
@@ -92,7 +93,7 @@ function App() {
         </div>
 
         <div className="section-title">Database Schema</div>
-        
+
         {Object.keys(schema).length === 0 ? (
           <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading schema...</div>
         ) : (
@@ -106,7 +107,7 @@ function App() {
                 {columns.map(col => (
                   <div key={col.name} className="column-item">
                     <span className="column-name">
-                      {col.name} {col.primary_key && <span style={{color: 'var(--accent-color)'}}>(PK)</span>}
+                      {col.name} {col.primary_key && <span style={{ color: 'var(--accent-color)' }}>(PK)</span>}
                     </span>
                     <span className="column-type">{col.type}</span>
                   </div>
@@ -117,7 +118,7 @@ function App() {
         )}
       </div>
 
-      {/* Main Chat Area */}
+      {/* Main chat area */}
       <div className="chat-area">
         <div className="messages-container">
           {messages.map((msg, idx) => (
@@ -130,6 +131,7 @@ function App() {
               </div>
             </div>
           ))}
+
           {isLoading && (
             <div className="message-wrapper message-agent">
               <div className="message-bubble" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -137,13 +139,14 @@ function App() {
               </div>
             </div>
           )}
+
           <div ref={messagesEndRef} />
         </div>
 
         <form className="input-area" onSubmit={handleSend}>
           <div className="input-container">
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="chat-input"
               placeholder="Ask anything about the data..."
               value={inputValue}

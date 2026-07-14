@@ -1,16 +1,52 @@
-# React + Vite
+# DataInsight AI - Frontend Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, responsive web dashboard built with React, Vite, and Tailwind-inspired styling. It connects to the FastAPI backend to provide an interactive interface for chatting with the database agent and visualizing its reasoning steps.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Interactive Schema Browser**: Displays the available database tables, column names, types, and primary key indicators directly in the sidebar.
+- **Collapsible Reasoning Tree**: Inspect the agent's real-time reasoning loops, including intermediate thoughts, chosen tools, arguments, and raw results for every query.
+- **Sleek UI/UX**: Dark mode styling with clean layouts, loading indicators, and smooth transitions.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Setup & Running
 
-## Expanding the ESLint configuration
+Make sure the FastAPI backend (`api.py`) is running on `http://127.0.0.1:8000` before starting the frontend.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 1. Install Dependencies
+
+Install the packages using npm:
+
+```bash
+npm install
+```
+
+### 2. Start the Development Server
+
+Launch the Vite dev server:
+
+```bash
+npm run dev
+```
+
+This will spin up the app, typically at `http://localhost:5173/`.
+
+### 3. Build for Production
+
+To generate the optimized production build:
+
+```bash
+npm run build
+```
+
+The output files will be built into the `dist/` directory.
+
+---
+
+## Technical Details
+
+- **Framework**: React 18+ & Vite
+- **HTTP Client**: Axios (configured to call the local FastAPI backend)
+- **Icons**: Lucide React
+- **Styling**: Vanilla CSS (`index.css` / `App.css`) supporting smooth transitions and variables.

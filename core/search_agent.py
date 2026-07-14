@@ -4,14 +4,14 @@ ReAct Agent Demo -- Built from Scratch with LangChain
 A message-based agent loop that shows every step of the
 Thought -> Action -> Observation cycle in the terminal.
 
-Uses OpenAI's native Tool-Calling capabilities.
+Uses Groq's native Tool-Calling capabilities.
 
 Usage:
     python core/search_agent.py
     python core/search_agent.py --verbose   # shows the full message history each iteration
 
 Requirements:
-    uv pip install langchain langchain-openai langchain-core python-dotenv rich requests
+    uv pip install langchain langchain-groq langchain-core python-dotenv rich requests
 """
 
 import os
@@ -22,7 +22,7 @@ import argparse
 import requests
 
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 
@@ -46,12 +46,12 @@ parser.add_argument(
 args = parser.parse_args()
 VERBOSE = args.verbose
 
-if not os.getenv("OPENAI_API_KEY"):
+if not os.getenv("GROQ_API_KEY"):
     console.print(
         Panel(
-            "[bold red]ERROR:[/bold red] OPENAI_API_KEY not found in environment.\n\n"
+            "[bold red]ERROR:[/bold red] GROQ_API_KEY not found in environment.\n\n"
             "Create a [cyan].env[/cyan] file with:\n"
-            "  OPENAI_API_KEY=sk-...\n\n"
+            "  GROQ_API_KEY=gsk_...\n\n"
             "Or export it in your shell.",
             title="Missing API Key",
             border_style="red",
@@ -171,8 +171,8 @@ You have access to tools to gather information. Follow these rules:
 - Only output the final answer when you have ALL required information.
 """
 
-llm = ChatOpenAI(
-    model="gpt-4o-mini",
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
     temperature=0,
 )
 llm_with_tools = llm.bind_tools(tools)
@@ -347,7 +347,6 @@ def run_react_agent(question: str, max_iters: int = 10) -> str | None:
                     result = f"Error: unknown tool '{name}'."
                 else:
                     try:
-                        # Extract first arg if tool expects a single positional parameter
                         if len(args) == 1:
                             val = list(args.values())[0]
                             result = str(tool_registry[name].invoke(val))
